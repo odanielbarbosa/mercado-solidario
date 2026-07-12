@@ -1,0 +1,15 @@
+# backups do banco exportados pelo app (dados reais das doações)
+db-mercado-solidario-*.json
+
+# tooling / editor
+.claude/
+.vscode/
+.idea/
+
+# SO
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# node (caso um dia use)
+node_modules/
