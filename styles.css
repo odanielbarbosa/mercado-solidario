@@ -67,14 +67,38 @@ html[data-theme="dark"] {
   --backdrop: rgba(0, 0, 0, .65);
 }
 
+html { -webkit-text-size-adjust: 100%; }
+
 body {
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--ink);
   min-height: 100vh;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-#app { max-width: 640px; margin: 0 auto; padding: 16px 16px 80px; }
+/* deixa selecionável o conteúdo de texto útil (nomes, tabela) */
+input, textarea, .prod-info, .rec, .tbl-wrap, .io-note, .foot-note {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* toque sem atraso de 300ms e sem zoom no double-tap */
+.btn, .nav-btn, .icon-btn, .theme-toggle, .opt, select, .cat-pill, .dash-back, .day-col {
+  touch-action: manipulation;
+}
+
+#app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding:
+    calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+    calc(80px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+}
 
 /* ---------- generic ---------- */
 .btn {

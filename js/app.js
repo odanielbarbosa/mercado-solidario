@@ -91,6 +91,8 @@ function toggleTheme() {
   const t = currentTheme() === "dark" ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", t);
   localStorage.setItem(THEME_KEY, t);
+  const mc = document.querySelector('meta[name="theme-color"]');
+  if (mc) mc.content = t === "light" ? "#f7f7f7" : "#131f24";
   const b = document.querySelector(".theme-toggle");
   if (b) { b.textContent = t === "dark" ? "☀️" : "🌙"; b.title = t === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"; }
 }
