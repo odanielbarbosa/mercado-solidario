@@ -2,8 +2,8 @@
   "_comment": "Exemplo do formato do banco de doações (JSON) gravado offline em localStorage. Use 'Exportar db.json' no app para baixar o seu de verdade, e 'Importar db.json' para restaurar ou levar para outro computador.",
   "v": 1,
   "produtos": [
-    { "id": "ex1", "nome": "Arroz 5kg", "categoria": "Alimentos", "qtd": 10, "unidade": "pct", "doador": "Maria Silva", "data": "2026-07-10", "por": "daniel", "ts": 1783532480000 },
-    { "id": "ex2", "nome": "Camiseta infantil", "categoria": "Roupas", "qtd": 25, "unidade": "un", "doador": "Comunidade", "data": "2026-07-11", "por": "igreja", "ts": 1783618880000 },
-    { "id": "ex3", "nome": "Sabonete", "categoria": "Higiene", "qtd": 40, "unidade": "un", "doador": "", "data": "2026-07-12", "por": "admin", "ts": 1783705280000 }
+    { "id": "ex1", "nome": "Arroz 5kg", "categoria": "Alimentos", "qtd": 10, "unidade": "pct", "data": "2026-07-10", "por": "daniel_ms", "ts": 1783532480000 },
+    { "id": "ex2", "nome": "Camiseta infantil", "categoria": "Roupas", "qtd": 25, "unidade": "un", "data": "2026-07-11", "por": "marcelo_ms", "ts": 1783618880000 },
+    { "id": "ex3", "nome": "Sabonete", "categoria": "Higiene", "qtd": 40, "unidade": "un", "data": "2026-07-12", "por": "jonathan_ms", "ts": 1783705280000 }
   ]
 }

@@ -8,8 +8,8 @@ claro/escuro e banco de dados em JSON (localStorage).
 
 - **Login simples**: a pessoa digita apenas o *usuário* (sem senha). Se o usuário
   existir no arquivo `js/users.js`, o acesso é liberado.
-- **Registrar doações**: produto, categoria, quantidade, unidade, doador e data.
-- **Lista de doações**: busca por produto/doador, filtro por categoria, editar e remover.
+- **Registrar doações**: produto, categoria, quantidade, unidade e data.
+- **Lista de doações**: busca por produto, filtro por categoria, editar e remover.
 - **Resumo**: totais, itens por categoria, doações por dia e as últimas doações.
 - **Backup**: exportar / importar todo o banco em um `db.json`.
 

@@ -24,7 +24,7 @@ const UNIDADES = ["un", "kg", "L", "pct", "cx", "par"];
 
 // =====================================================
 // BANCO DE DADOS (JSON em localStorage) — 100% offline
-//   produtos: [ { id, nome, categoria, qtd, unidade, doador, data, por, ts } ]
+//   produtos: [ { id, nome, categoria, qtd, unidade, data, por, ts } ]
 // =====================================================
 const DB_VERSION = 1;
 function normalizeDB(raw) {
@@ -159,7 +159,7 @@ function home() {
   const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
   const editando = editId !== null;
   const p = editando ? DB.produtos.find(x => x.id === editId) : null;
-  const v = p || { nome: "", categoria: CATEGORIAS[0].nome, qtd: 1, unidade: "un", doador: "", data: ymd(Date.now()) };
+  const v = p || { nome: "", categoria: CATEGORIAS[0].nome, qtd: 1, unidade: "un", data: ymd(Date.now()) };
 
   app.innerHTML = `
   <div class="topbar">
@@ -184,13 +184,9 @@ function home() {
         <label for="f-nome">Produto</label>
         <input id="f-nome" class="type-input" style="text-align:left" placeholder="Ex: Arroz 5kg, Camiseta, Sabonete…" value="${esc(v.nome)}">
       </div>
-      <div class="field">
+      <div class="field full">
         <label for="f-categoria">Categoria</label>
         <select id="f-categoria" class="type-input">${catOpts}</select>
-      </div>
-      <div class="field">
-        <label for="f-doador">Doador (opcional)</label>
-        <input id="f-doador" class="type-input" style="text-align:left" placeholder="Quem doou" value="${esc(v.doador)}">
       </div>
       <div class="field">
         <label for="f-qtd">Quantidade</label>
@@ -214,7 +210,7 @@ function home() {
 
   <div class="section-h">Doações registradas</div>
   <div class="toolbar">
-    <input id="search" class="type-input" style="text-align:left" placeholder="🔎 Buscar por produto ou doador…">
+    <input id="search" class="type-input" style="text-align:left" placeholder="🔎 Buscar por produto…">
     <select id="filterCat" class="type-input">
       <option value="">Todas as categorias</option>
       ${CATEGORIAS.map(c => `<option value="${c.nome}">${c.icon} ${c.nome}</option>`).join("")}
@@ -262,9 +258,7 @@ function renderList() {
 
   let itens = DB.produtos.slice().reverse();
   if (filtro) itens = itens.filter(p => p.categoria === filtro);
-  if (busca) itens = itens.filter(p =>
-    (p.nome || "").toLowerCase().includes(busca) ||
-    (p.doador || "").toLowerCase().includes(busca));
+  if (busca) itens = itens.filter(p => (p.nome || "").toLowerCase().includes(busca));
 
   if (!itens.length) {
     wrap.innerHTML = DB.produtos.length
@@ -280,8 +274,7 @@ function renderList() {
       <div class="picon" style="background:${c.cor}22;border-color:${c.cor}">${c.icon}</div>
       <div class="prod-info">
         <h3>${esc(p.nome)}</h3>
-        <p><span class="cat-pill">${esc(p.categoria)}</span><span class="qty">${esc(p.qtd)} ${esc(p.unidade)}</span>
-        ${p.doador ? " · " + esc(p.doador) : ""} · ${dataBR(p.data)}</p>
+        <p><span class="cat-pill">${esc(p.categoria)}</span><span class="qty">${esc(p.qtd)} ${esc(p.unidade)}</span> · ${dataBR(p.data)}</p>
       </div>
       <div class="row-actions">
         <button class="icon-btn" title="Editar" data-edit="${p.id}">✏️</button>
@@ -302,21 +295,20 @@ function salvarProduto() {
   const categoria = app.querySelector("#f-categoria").value;
   const qtd = Math.max(1, parseInt(app.querySelector("#f-qtd").value, 10) || 1);
   const unidade = app.querySelector("#f-unidade").value;
-  const doador = app.querySelector("#f-doador").value.trim();
   const data = app.querySelector("#f-data").value;
 
   if (!nome) { mostrarMsg("Informe o nome do produto.", true); app.querySelector("#f-nome").focus(); return; }
 
   if (editId !== null) {
     const p = DB.produtos.find(x => x.id === editId);
-    if (p) Object.assign(p, { nome, categoria, qtd, unidade, doador, data });
+    if (p) Object.assign(p, { nome, categoria, qtd, unidade, data });
     saveDB();
     editId = null;
     home();
     mostrarMsg("Doação atualizada com sucesso! ✅", false);
   } else {
     DB.produtos.push({
-      id: uid(), nome, categoria, qtd, unidade, doador, data,
+      id: uid(), nome, categoria, qtd, unidade, data,
       por: currentUser ? currentUser.id : "", ts: Date.now()
     });
     saveDB();
@@ -350,7 +342,6 @@ function stats() {
   const prods = DB.produtos;
   const totalRegistros = prods.length;
   const totalItens = prods.reduce((s, p) => s + (parseInt(p.qtd, 10) || 0), 0);
-  const doadores = new Set(prods.map(p => (p.doador || "").trim().toLowerCase()).filter(Boolean)).size;
   const catsUsadas = new Set(prods.map(p => p.categoria)).size;
 
   let html = `
@@ -375,8 +366,7 @@ function stats() {
   html += `<div class="tiles">
     <div class="tile a"><div class="v">${totalRegistros}</div><div class="k">registros</div></div>
     <div class="tile b"><div class="v">${totalItens}</div><div class="k">itens no total</div></div>
-    <div class="tile c"><div class="v">${doadores}</div><div class="k">doadores</div></div>
-    <div class="tile d"><div class="v">${catsUsadas}</div><div class="k">categorias</div></div>
+    <div class="tile c"><div class="v">${catsUsadas}</div><div class="k">categorias</div></div>
   </div>`;
 
   html += `<div class="panel"><h2>Por categoria</h2><div class="psub">Total de itens em cada categoria</div>${buildCatBars(prods)}</div>`;
@@ -436,10 +426,9 @@ function buildRecent(prods) {
     <td>${esc(p.nome)}</td>
     <td>${esc(p.categoria)}</td>
     <td style="font-weight:800">${esc(p.qtd)} ${esc(p.unidade)}</td>
-    <td>${p.doador ? esc(p.doador) : "—"}</td>
   </tr>`).join("");
   return `<div class="tbl-wrap"><table class="rec">
-    <thead><tr><th>Data</th><th>Produto</th><th>Categoria</th><th>Qtd</th><th>Doador</th></tr></thead>
+    <thead><tr><th>Data</th><th>Produto</th><th>Categoria</th><th>Qtd</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 
