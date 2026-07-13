@@ -9,22 +9,11 @@ const USERS = window.USERS || [];
 let currentUser = null;
 let editId = null;   // id do produto em edição (null = adicionando)
 
-// categorias com ícone e cor
-const CATEGORIAS = [
-  { nome: "Alimentos",  icon: "🍚", cor: "#58cc02" },
-  { nome: "Roupas",     icon: "👕", cor: "#1cb0f6" },
-  { nome: "Higiene",    icon: "🧼", cor: "#ce82ff" },
-  { nome: "Limpeza",    icon: "🧽", cor: "#ff9600" },
-  { nome: "Calçados",   icon: "👟", cor: "#ffc800" },
-  { nome: "Móveis",     icon: "🪑", cor: "#ff4b4b" },
-  { nome: "Brinquedos", icon: "🧸", cor: "#2ec4b6" },
-  { nome: "Outros",     icon: "📦", cor: "#9aacb5" }
-];
-const UNIDADES = ["un", "kg", "L", "pct", "cx", "par"];
+const UNIDADES = ["Gramas", "Quilos", "Caixas", "Pacotes", "Unidade"];
 
 // =====================================================
 // BANCO DE DADOS (JSON em localStorage) — 100% offline
-//   produtos: [ { id, nome, categoria, qtd, unidade, data, por, ts } ]
+//   produtos: [ { id, nome, qtd, unidade, data, por, ts } ]
 // =====================================================
 const DB_VERSION = 1;
 function normalizeDB(raw) {
@@ -65,10 +54,6 @@ function pickImportFile() {
   inp.onchange = () => { if (inp.files && inp.files[0]) importDB(inp.files[0]); };
   inp.click();
 }
-function resetDB() {
-  if (!confirm("Apagar TODAS as doações registradas? (dica: exporte um db.json antes)")) return;
-  DB = normalizeDB(null); saveDB(); editId = null; home();
-}
 
 // =====================================================
 // HELPERS
@@ -77,12 +62,10 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 function uid() { return Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
-function cat(nome) { return CATEGORIAS.find(c => c.nome === nome) || CATEGORIAS[CATEGORIAS.length - 1]; }
 
 // datas
 function ymd(ts) { const d = new Date(ts); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function dmy(ts) { const d = new Date(ts); return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
-function hhmm(ts) { const d = new Date(ts); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
 function dataBR(iso) { if (!iso) return "—"; const p = String(iso).split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : iso; }
 
 // ---------- tema ----------
@@ -155,18 +138,18 @@ function home() {
   const dark = currentTheme() === "dark";
   const totalItens = DB.produtos.reduce((s, p) => s + (parseInt(p.qtd, 10) || 0), 0);
 
-  const catOpts = CATEGORIAS.map(c => `<option value="${c.nome}">${c.icon} ${c.nome}</option>`).join("");
   const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
   const editando = editId !== null;
   const p = editando ? DB.produtos.find(x => x.id === editId) : null;
-  const v = p || { nome: "", categoria: CATEGORIAS[0].nome, qtd: 1, unidade: "un", data: ymd(Date.now()) };
+  const v = p || { nome: "", qtd: 1, unidade: "Unidade", data: ymd(Date.now()) };
 
   app.innerHTML = `
   <div class="topbar">
     <div class="brand"><span>🤝</span> Mercado Solidário</div>
     <div class="top-right">
       <div class="stats"><span class="done">📦 ${totalItens}</span></div>
-      <button class="theme-toggle" title="${dark ? "Mudar para tema claro" : "Mudar para tema escuro"}">${dark ? "☀️" : "🌙"}</button>
+      <button class="cfg-btn" id="cfgBtn" title="Configurações">⚙️</button>
+      <button class="theme-toggle" id="themeBtn" title="${dark ? "Mudar para tema claro" : "Mudar para tema escuro"}">${dark ? "☀️" : "🌙"}</button>
     </div>
   </div>
 
@@ -183,10 +166,6 @@ function home() {
       <div class="field full">
         <label for="f-nome">Produto</label>
         <input id="f-nome" class="type-input" style="text-align:left" placeholder="Ex: Arroz 5kg, Camiseta, Sabonete…" value="${esc(v.nome)}">
-      </div>
-      <div class="field full">
-        <label for="f-categoria">Categoria</label>
-        <select id="f-categoria" class="type-input">${catOpts}</select>
       </div>
       <div class="field">
         <label for="f-qtd">Quantidade</label>
@@ -211,38 +190,20 @@ function home() {
   <div class="section-h">Doações registradas</div>
   <div class="toolbar">
     <input id="search" class="type-input" style="text-align:left" placeholder="🔎 Buscar por produto…">
-    <select id="filterCat" class="type-input">
-      <option value="">Todas as categorias</option>
-      ${CATEGORIAS.map(c => `<option value="${c.nome}">${c.icon} ${c.nome}</option>`).join("")}
-    </select>
   </div>
-  <div id="list"></div>
+  <div id="list"></div>`;
 
-  <div class="io-row">
-    <button class="nav-btn" id="statsBtn">📊 Resumo</button>
-    <button class="nav-btn" id="expBtn">⬇️ Exportar db.json</button>
-    <button class="nav-btn" id="impBtn">⬆️ Importar db.json</button>
-    <button class="nav-btn" id="resetBtn">🗑️ Zerar</button>
-  </div>
-  <div class="io-note">As doações ficam salvas neste navegador (banco JSON offline).<br>
-  Use <b>Exportar</b> para gerar um <b>db.json</b> de backup ou levar para outro computador.</div>`;
-
-  // valores dos selects
-  app.querySelector("#f-categoria").value = v.categoria;
+  // valor do select de unidade
   app.querySelector("#f-unidade").value = v.unidade;
 
   // binds
-  app.querySelector(".theme-toggle").addEventListener("click", toggleTheme);
+  app.querySelector("#themeBtn").addEventListener("click", toggleTheme);
+  app.querySelector("#cfgBtn").addEventListener("click", openSettings);
   app.querySelector("#logoutBtn").addEventListener("click", logout);
   app.querySelector("#saveBtn").addEventListener("click", salvarProduto);
   const cancel = app.querySelector("#cancelBtn");
   if (cancel) cancel.addEventListener("click", () => { editId = null; home(); });
-  app.querySelector("#statsBtn").addEventListener("click", stats);
-  app.querySelector("#expBtn").addEventListener("click", exportDB);
-  app.querySelector("#impBtn").addEventListener("click", pickImportFile);
-  app.querySelector("#resetBtn").addEventListener("click", resetDB);
   app.querySelector("#search").addEventListener("input", renderList);
-  app.querySelector("#filterCat").addEventListener("change", renderList);
   app.querySelector("#f-nome").addEventListener("keydown", e => { if (e.key === "Enter") salvarProduto(); });
 
   renderList();
@@ -254,34 +215,29 @@ function renderList() {
   const wrap = app.querySelector("#list");
   if (!wrap) return;
   const busca = (app.querySelector("#search").value || "").trim().toLowerCase();
-  const filtro = app.querySelector("#filterCat").value;
 
   let itens = DB.produtos.slice().reverse();
-  if (filtro) itens = itens.filter(p => p.categoria === filtro);
   if (busca) itens = itens.filter(p => (p.nome || "").toLowerCase().includes(busca));
 
   if (!itens.length) {
     wrap.innerHTML = DB.produtos.length
-      ? `<div class="empty-note"><div class="big">🔎</div>Nenhuma doação encontrada com esse filtro.</div>`
+      ? `<div class="empty-note"><div class="big">🔎</div>Nenhuma doação encontrada.</div>`
       : `<div class="empty-note"><div class="big">📦</div>Nenhuma doação registrada ainda.<br>Cadastre a primeira no formulário acima!</div>`;
     return;
   }
 
-  wrap.innerHTML = itens.map(p => {
-    const c = cat(p.categoria);
-    return `
+  wrap.innerHTML = itens.map(p => `
     <div class="prod">
-      <div class="picon" style="background:${c.cor}22;border-color:${c.cor}">${c.icon}</div>
+      <div class="picon">📦</div>
       <div class="prod-info">
         <h3>${esc(p.nome)}</h3>
-        <p><span class="cat-pill">${esc(p.categoria)}</span><span class="qty">${esc(p.qtd)} ${esc(p.unidade)}</span> · ${dataBR(p.data)}</p>
+        <p><span class="qty">${esc(p.qtd)} ${esc(p.unidade)}</span> · ${dataBR(p.data)}</p>
       </div>
       <div class="row-actions">
         <button class="icon-btn" title="Editar" data-edit="${p.id}">✏️</button>
         <button class="icon-btn del" title="Remover" data-del="${p.id}">🗑️</button>
       </div>
-    </div>`;
-  }).join("");
+    </div>`).join("");
 
   wrap.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { editId = b.dataset.edit; home(); });
   wrap.querySelectorAll("[data-del]").forEach(b => b.onclick = () => removerProduto(b.dataset.del));
@@ -292,7 +248,6 @@ function renderList() {
 // =====================================================
 function salvarProduto() {
   const nome = app.querySelector("#f-nome").value.trim();
-  const categoria = app.querySelector("#f-categoria").value;
   const qtd = Math.max(1, parseInt(app.querySelector("#f-qtd").value, 10) || 1);
   const unidade = app.querySelector("#f-unidade").value;
   const data = app.querySelector("#f-data").value;
@@ -301,14 +256,14 @@ function salvarProduto() {
 
   if (editId !== null) {
     const p = DB.produtos.find(x => x.id === editId);
-    if (p) Object.assign(p, { nome, categoria, qtd, unidade, data });
+    if (p) Object.assign(p, { nome, qtd, unidade, data });
     saveDB();
     editId = null;
     home();
     mostrarMsg("Doação atualizada com sucesso! ✅", false);
   } else {
     DB.produtos.push({
-      id: uid(), nome, categoria, qtd, unidade, data,
+      id: uid(), nome, qtd, unidade, data,
       por: currentUser ? currentUser.id : "", ts: Date.now()
     });
     saveDB();
@@ -336,13 +291,39 @@ function mostrarMsg(texto, isErr) {
 }
 
 // =====================================================
+// POPUP DE CONFIGURAÇÕES
+// =====================================================
+function openSettings() {
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+  <div class="modal">
+    <button class="close-x" title="Fechar">✕</button>
+    <h2>⚙️ Configurações</h2>
+    <div class="modal-actions">
+      <button class="nav-btn" id="mResumo">📊 Resumo</button>
+      <button class="nav-btn" id="mExport">⬇️ Exportar db.json</button>
+      <button class="nav-btn" id="mImport">⬆️ Importar db.json</button>
+    </div>
+    <div class="modal-note">As doações ficam salvas neste navegador (banco JSON offline).<br>
+    Use <b>Exportar</b> para gerar um <b>db.json</b> de backup ou levar para outro computador.</div>
+  </div>`;
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  bg.querySelector(".close-x").onclick = close;
+  bg.onclick = e => { if (e.target === bg) close(); };
+  bg.querySelector("#mResumo").onclick = () => { close(); stats(); };
+  bg.querySelector("#mExport").onclick = () => { close(); exportDB(); };
+  bg.querySelector("#mImport").onclick = () => { close(); pickImportFile(); };
+}
+
+// =====================================================
 // RESUMO / DASHBOARD
 // =====================================================
 function stats() {
   const prods = DB.produtos;
   const totalRegistros = prods.length;
   const totalItens = prods.reduce((s, p) => s + (parseInt(p.qtd, 10) || 0), 0);
-  const catsUsadas = new Set(prods.map(p => p.categoria)).size;
 
   let html = `
   <div class="dash-head">
@@ -366,10 +347,8 @@ function stats() {
   html += `<div class="tiles">
     <div class="tile a"><div class="v">${totalRegistros}</div><div class="k">registros</div></div>
     <div class="tile b"><div class="v">${totalItens}</div><div class="k">itens no total</div></div>
-    <div class="tile c"><div class="v">${catsUsadas}</div><div class="k">categorias</div></div>
   </div>`;
 
-  html += `<div class="panel"><h2>Por categoria</h2><div class="psub">Total de itens em cada categoria</div>${buildCatBars(prods)}</div>`;
   html += `<div class="panel"><h2>Doações (últimos 14 dias)</h2><div class="psub">Registros por dia</div>${buildDayBars(prods)}</div>`;
   html += `<div class="panel"><h2>Últimas doações</h2><div class="psub">As ${Math.min(8, totalRegistros)} mais recentes</div>${buildRecent(prods)}</div>`;
 
@@ -384,22 +363,6 @@ function stats() {
   app.querySelector("#expBtn").onclick = exportDB;
   app.querySelector(".theme-toggle").onclick = () => { toggleTheme(); stats(); };
   window.scrollTo(0, 0);
-}
-
-function buildCatBars(prods) {
-  const porCat = {};
-  prods.forEach(p => { porCat[p.categoria] = (porCat[p.categoria] || 0) + (parseInt(p.qtd, 10) || 0); });
-  const nomes = Object.keys(porCat).sort((a, b) => porCat[b] - porCat[a]);
-  const max = Math.max(1, ...nomes.map(n => porCat[n]));
-  return nomes.map(n => {
-    const c = cat(n);
-    const pct = Math.round(porCat[n] / max * 100);
-    return `<div class="unit-row">
-      <div class="un" title="${esc(n)}">${c.icon} ${esc(n)}</div>
-      <div class="unit-track"><div class="unit-fill" style="width:${pct}%;background:${c.cor}"></div></div>
-      <div class="up">${porCat[n]}</div>
-    </div>`;
-  }).join("");
 }
 
 function buildDayBars(prods) {
@@ -424,11 +387,10 @@ function buildRecent(prods) {
   const rows = prods.slice(-8).reverse().map(p => `<tr>
     <td>${dataBR(p.data)}</td>
     <td>${esc(p.nome)}</td>
-    <td>${esc(p.categoria)}</td>
     <td style="font-weight:800">${esc(p.qtd)} ${esc(p.unidade)}</td>
   </tr>`).join("");
   return `<div class="tbl-wrap"><table class="rec">
-    <thead><tr><th>Data</th><th>Produto</th><th>Categoria</th><th>Qtd</th></tr></thead>
+    <thead><tr><th>Data</th><th>Produto</th><th>Qtd</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 

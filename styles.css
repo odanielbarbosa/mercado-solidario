@@ -148,12 +148,12 @@ input, textarea, .prod-info, .rec, .tbl-wrap, .io-note, .foot-note {
 .stats { display: flex; gap: 14px; font-weight: 800; font-size: 15px; }
 .stats .xp { color: var(--yellow); }
 .stats .done { color: var(--green); }
-.theme-toggle {
+.theme-toggle, .cfg-btn {
   background: var(--card); border: 2px solid var(--line); border-radius: 50%;
   width: 38px; height: 38px; font-size: 17px; cursor: pointer;
   box-shadow: 0 3px 0 var(--line); line-height: 1;
 }
-.theme-toggle:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
+.theme-toggle:active, .cfg-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
 
 /* ---------- login ---------- */
 .login { position: relative; max-width: 480px; margin: 0 auto; padding: 40px 8px 60px; text-align: center; }
@@ -293,6 +293,25 @@ select.type-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 
 .empty-note { text-align: center; padding: 40px 20px; color: var(--ink-soft); font-size: 14px; line-height: 1.7; }
 .empty-note .big { font-size: 48px; margin-bottom: 10px; }
+
+/* ---------- modal / popup ---------- */
+.modal-bg {
+  position: fixed; inset: 0; background: var(--backdrop); z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal {
+  background: var(--card); border: 2px solid var(--line); border-radius: 18px;
+  width: 100%; max-width: 360px; padding: 22px 20px; position: relative;
+}
+.modal h2 { font-size: 17px; font-weight: 900; margin-bottom: 16px; }
+.modal .close-x {
+  position: absolute; top: 12px; right: 14px; background: none; border: none;
+  font-size: 24px; color: var(--muted); cursor: pointer; line-height: 1; font-weight: 700;
+}
+.modal .close-x:hover { color: var(--ink); }
+.modal-actions { display: flex; flex-direction: column; gap: 10px; }
+.modal-actions .nav-btn { width: 100%; padding: 13px; font-size: 14px; text-align: center; }
+.modal-note { font-size: 11.5px; color: var(--ink-soft); margin-top: 16px; line-height: 1.6; text-align: center; }
 
 @media (max-width: 480px) {
   .stats { font-size: 13px; }
