@@ -163,9 +163,10 @@ function home() {
     <h2>${editando ? "✏️ Editar doação" : "➕ Registrar doação"}</h2>
     <div class="fsub">Preencha os dados do produto doado para a igreja.</div>
     <div class="form-grid">
-      <div class="field full">
+      <div class="field full" style="position:relative">
         <label for="f-nome">Produto</label>
-        <input id="f-nome" class="type-input" style="text-align:left" placeholder="Ex: Arroz 5kg, Camiseta, Sabonete…" value="${esc(v.nome)}">
+        <input id="f-nome" class="type-input" style="text-align:left" placeholder="Ex: Arroz 5kg, Camiseta, Sabonete…" value="${esc(v.nome)}" autocomplete="off">
+        <div class="suggest" id="nomeSuggest"></div>
       </div>
       <div class="field">
         <label for="f-qtd">Quantidade</label>
@@ -206,6 +207,7 @@ function home() {
   app.querySelector("#search").addEventListener("input", renderList);
   app.querySelector("#f-nome").addEventListener("keydown", e => { if (e.key === "Enter") salvarProduto(); });
 
+  setupNomeAutocomplete();
   renderList();
   if (editando) app.querySelector("#f-nome").focus();
   window.scrollTo(0, 0);
@@ -241,6 +243,46 @@ function renderList() {
 
   wrap.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { editId = b.dataset.edit; home(); });
   wrap.querySelectorAll("[data-del]").forEach(b => b.onclick = () => removerProduto(b.dataset.del));
+}
+
+// ---------- autocomplete do campo Produto ----------
+// lista os produtos já cadastrados (distinct, mais recentes primeiro)
+function distinctNomes() {
+  const seen = new Set(), out = [];
+  for (let i = DB.produtos.length - 1; i >= 0; i--) {
+    const nome = (DB.produtos[i].nome || "").trim();
+    const key = nome.toLowerCase();
+    if (nome && !seen.has(key)) { seen.add(key); out.push(nome); }
+  }
+  return out;
+}
+
+function setupNomeAutocomplete() {
+  const inp = app.querySelector("#f-nome");
+  const box = app.querySelector("#nomeSuggest");
+  if (!inp || !box) return;
+  const todos = distinctNomes();
+  if (!todos.length) return; // sem histórico, nada a sugerir
+
+  const render = () => {
+    const q = inp.value.trim().toLowerCase();
+    let lista = q ? todos.filter(n => n.toLowerCase().startsWith(q) && n.toLowerCase() !== q) : todos;
+    lista = lista.slice(0, 8);
+    if (!lista.length) { box.classList.remove("open"); box.innerHTML = ""; return; }
+    box.innerHTML = lista.map(n => `<button type="button" class="sug-item" data-n="${esc(n)}">${esc(n)}</button>`).join("");
+    box.classList.add("open");
+    box.querySelectorAll(".sug-item").forEach(b => b.addEventListener("mousedown", e => {
+      e.preventDefault();
+      inp.value = b.dataset.n;
+      box.classList.remove("open");
+      inp.focus();
+    }));
+  };
+
+  inp.addEventListener("input", render);
+  inp.addEventListener("focus", render);
+  inp.addEventListener("blur", () => setTimeout(() => box.classList.remove("open"), 150));
+  inp.addEventListener("keydown", e => { if (e.key === "Escape") box.classList.remove("open"); });
 }
 
 // =====================================================

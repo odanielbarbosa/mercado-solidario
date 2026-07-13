@@ -206,6 +206,22 @@ select.type-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 }
 .form-msg.err { border-color: var(--red); background: var(--red-bg); color: var(--red-ink); }
 
+/* ---------- autocomplete do campo Produto ---------- */
+.suggest {
+  position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px;
+  background: var(--card); border: 2px solid var(--line); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18); z-index: 30;
+  max-height: 220px; overflow-y: auto; display: none;
+}
+.suggest.open { display: block; }
+.sug-item {
+  display: block; width: 100%; text-align: left; border: none; background: none;
+  padding: 11px 14px; font-size: 15px; font-weight: 600; color: var(--ink);
+  cursor: pointer; border-bottom: 1px solid var(--line); touch-action: manipulation;
+}
+.sug-item:last-child { border-bottom: none; }
+.sug-item:hover, .sug-item:active { background: var(--sel-bg); color: var(--sel-ink); }
+
 /* ---------- barra de busca / filtro ---------- */
 .toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .toolbar .type-input { flex: 1; min-width: 150px; }
