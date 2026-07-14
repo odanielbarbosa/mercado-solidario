@@ -5,11 +5,13 @@ const app = document.getElementById("app");
 const STORE = "mercado-solidario-v1";       // banco COMPARTILHADO (inventário da igreja)
 const USER_KEY = "mercado-solidario-user";
 const THEME_KEY = "mercado-solidario-theme";
-const USERS = window.USERS || [];
+const BASE_USERS = window.USERS || [];        // usuários "oficiais" (js/users.js)
+const USERS_KEY = "mercado-solidario-users";  // usuários criados pelo app (neste navegador)
 let currentUser = null;
 let editId = null;   // id do produto em edição (null = adicionando)
 
 const UNIDADES = ["Gramas", "Quilos", "Caixas", "Pacotes", "Unidade"];
+const AVATAR_CORES = ["#1cb0f6", "#58cc02", "#ce82ff", "#ff9600", "#ffc800", "#ff4b4b", "#2ec4b6"];
 
 // =====================================================
 // BANCO DE DADOS (JSON em localStorage) — 100% offline
@@ -83,10 +85,23 @@ function toggleTheme() {
 // =====================================================
 // LOGIN / USUÁRIOS (valida contra o banco em js/users.js)
 // =====================================================
+function loadExtraUsers() {
+  try { const a = JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); return Array.isArray(a) ? a : []; }
+  catch (e) { return []; }
+}
+function saveExtraUsers(arr) { try { localStorage.setItem(USERS_KEY, JSON.stringify(arr)); } catch (e) {} }
+function allUsers() {
+  const seen = new Set(), out = [];
+  BASE_USERS.concat(loadExtraUsers()).forEach(u => {
+    const k = String(u.id || "").toLowerCase();
+    if (k && !seen.has(k)) { seen.add(k); out.push(u); }
+  });
+  return out;
+}
 function findUser(input) {
   const q = String(input || "").trim().toLowerCase();
   if (!q) return null;
-  return USERS.find(u => u.id.toLowerCase() === q) || null;
+  return allUsers().find(u => u.id.toLowerCase() === q) || null;
 }
 function login(user) {
   if (!user) return;
@@ -344,6 +359,7 @@ function openSettings() {
     <h2>⚙️ Configurações</h2>
     <div class="modal-actions">
       <button class="nav-btn" id="mResumo">📊 Resumo</button>
+      <button class="nav-btn" id="mAddUser">👤 Adicionar usuário</button>
       <button class="nav-btn" id="mExport">⬇️ Exportar db.json</button>
       <button class="nav-btn" id="mImport">⬆️ Importar db.json</button>
     </div>
@@ -355,8 +371,66 @@ function openSettings() {
   bg.querySelector(".close-x").onclick = close;
   bg.onclick = e => { if (e.target === bg) close(); };
   bg.querySelector("#mResumo").onclick = () => { close(); stats(); };
+  bg.querySelector("#mAddUser").onclick = () => { close(); openAddUser(); };
   bg.querySelector("#mExport").onclick = () => { close(); exportDB(); };
   bg.querySelector("#mImport").onclick = () => { close(); pickImportFile(); };
+}
+
+// ---------- popup: adicionar usuário ----------
+function openAddUser() {
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+  <div class="modal">
+    <button class="close-x" title="Fechar">✕</button>
+    <h2>👤 Adicionar usuário</h2>
+    <div class="modal-form">
+      <div class="field">
+        <label for="u-nome">Nome</label>
+        <input id="u-nome" class="type-input" style="text-align:left" placeholder="Ex: João" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="u-id">Nome de usuário</label>
+        <input id="u-id" class="type-input" style="text-align:left" placeholder="Ex: joao_ms" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="mini-hint">Deve terminar com <b>_ms</b>.</div>
+      </div>
+    </div>
+    <div id="u-msg"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn" id="u-save">Cadastrar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  bg.querySelector(".close-x").onclick = close;
+  bg.onclick = e => { if (e.target === bg) close(); };
+
+  const nomeEl = bg.querySelector("#u-nome");
+  const idEl = bg.querySelector("#u-id");
+  const msg = bg.querySelector("#u-msg");
+  const showErr = t => { msg.innerHTML = `<div class="form-msg err">${esc(t)}</div>`; };
+  const showOk = t => { msg.innerHTML = `<div class="form-msg">${esc(t)}</div>`; };
+
+  const salvar = () => {
+    const nome = nomeEl.value.trim();
+    const id = idEl.value.trim().toLowerCase().replace(/\s+/g, "");
+    if (!nome) { showErr("Informe o nome."); nomeEl.focus(); return; }
+    if (!id) { showErr("Informe o nome de usuário."); idEl.focus(); return; }
+    if (!id.endsWith("_ms")) { showErr("O nome de usuário deve terminar com _ms."); idEl.focus(); return; }
+    if (!/^[a-z0-9_]+_ms$/.test(id)) { showErr("Use só letras, números e _ (ex: joao_ms)."); idEl.focus(); return; }
+    if (findUser(id)) { showErr("Esse nome de usuário já existe."); idEl.focus(); return; }
+
+    const extras = loadExtraUsers();
+    extras.push({ id, name: nome, avatar: "👤", color: AVATAR_CORES[extras.length % AVATAR_CORES.length] });
+    saveExtraUsers(extras);
+    showOk(`Usuário “${nome}” (${id}) cadastrado! ✅`);
+    nomeEl.value = ""; idEl.value = ""; nomeEl.focus();
+  };
+
+  bg.querySelector("#u-save").onclick = salvar;
+  nomeEl.addEventListener("keydown", e => { if (e.key === "Enter") idEl.focus(); });
+  idEl.addEventListener("keydown", e => { if (e.key === "Enter") salvar(); });
+  nomeEl.focus();
 }
 
 // =====================================================
