@@ -176,6 +176,17 @@ input, textarea, .prod-info, .rec, .tbl-wrap, .io-note, .foot-note {
 .user-bar .uwrap { flex: 1; min-width: 0; }
 .user-bar .uhi { font-weight: 800; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ---------- abas (entradas / saídas) ---------- */
+.tabs { display: flex; gap: 8px; margin: 2px 0 18px; }
+.tabs .tab {
+  flex: 1; padding: 11px; border: 2px solid var(--line); background: var(--card);
+  border-radius: 12px; font-weight: 800; font-size: 14px; color: var(--ink-soft);
+  cursor: pointer; box-shadow: 0 3px 0 var(--line); touch-action: manipulation;
+}
+.tabs .tab.active { background: var(--green); border-color: var(--green); color: #fff; box-shadow: 0 3px 0 var(--green-dark); }
+.tabs .tab:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--line); }
+.tabs .tab.active:active { box-shadow: 0 1px 0 var(--green-dark); }
+
 /* ---------- inputs (compartilhados) ---------- */
 .type-input {
   width: 100%; font-size: 16px; font-weight: 600; color: var(--ink);
@@ -190,6 +201,7 @@ select.type-input { appearance: none; -webkit-appearance: none; cursor: pointer;
   background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%;
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 34px;
 }
+textarea.type-input { resize: vertical; min-height: 58px; font-family: inherit; line-height: 1.5; }
 
 /* ---------- formulário de doação ---------- */
 .form-card { margin-bottom: 22px; }
@@ -260,6 +272,7 @@ select.type-input { appearance: none; -webkit-appearance: none; cursor: pointer;
 .prod-info { flex: 1; min-width: 0; }
 .prod-info h3 { font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prod-info p { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; }
+.prod-info .prod-obs { font-style: italic; }
 .prod-info .qty { font-weight: 800; color: var(--green-ink); }
 .cat-pill {
   display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px;

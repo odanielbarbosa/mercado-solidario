@@ -8,7 +8,9 @@ const THEME_KEY = "mercado-solidario-theme";
 const BASE_USERS = window.USERS || [];        // usuários "oficiais" (js/users.js)
 const USERS_KEY = "mercado-solidario-users";  // usuários criados pelo app (neste navegador)
 let currentUser = null;
-let editId = null;   // id do produto em edição (null = adicionando)
+let editId = null;        // id da entrada (doação) em edição
+let saidaEditId = null;   // id da saída em edição
+let view = "entradas";    // aba atual: "entradas" | "saidas"
 
 const UNIDADES = ["Gramas", "Quilos", "Caixas", "Pacotes", "Unidade"];
 const AVATAR_CORES = ["#1cb0f6", "#58cc02", "#ce82ff", "#ff9600", "#ffc800", "#ff4b4b", "#2ec4b6"];
@@ -20,7 +22,11 @@ const AVATAR_CORES = ["#1cb0f6", "#58cc02", "#ce82ff", "#ff9600", "#ffc800", "#f
 const DB_VERSION = 1;
 function normalizeDB(raw) {
   const d = raw && typeof raw === "object" ? raw : {};
-  return { v: DB_VERSION, produtos: Array.isArray(d.produtos) ? d.produtos : [] };
+  return {
+    v: DB_VERSION,
+    produtos: Array.isArray(d.produtos) ? d.produtos : [],
+    saidas: Array.isArray(d.saidas) ? d.saidas : []
+  };
 }
 let DB = normalizeDB(null);
 function loadDB() {
@@ -153,11 +159,6 @@ function home() {
   const dark = currentTheme() === "dark";
   const totalItens = DB.produtos.reduce((s, p) => s + (parseInt(p.qtd, 10) || 0), 0);
 
-  const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
-  const editando = editId !== null;
-  const p = editando ? DB.produtos.find(x => x.id === editId) : null;
-  const v = p || { nome: "", qtd: 1, unidade: "Unidade", data: ymd(Date.now()) };
-
   app.innerHTML = `
   <div class="topbar">
     <div class="brand"><span>🤝</span> Mercado Solidário</div>
@@ -174,6 +175,33 @@ function home() {
     <button class="nav-btn" id="logoutBtn">↩︎ Trocar usuário</button>
   </div>
 
+  <div class="tabs">
+    <button class="tab ${view === "entradas" ? "active" : ""}" data-view="entradas">📥 Entradas</button>
+    <button class="tab ${view === "saidas" ? "active" : ""}" data-view="saidas">📤 Saídas</button>
+  </div>
+
+  <div id="viewContent"></div>`;
+
+  app.querySelector("#themeBtn").addEventListener("click", toggleTheme);
+  app.querySelector("#cfgBtn").addEventListener("click", openSettings);
+  app.querySelector("#logoutBtn").addEventListener("click", logout);
+  app.querySelectorAll(".tabs .tab").forEach(t => t.addEventListener("click", () => {
+    if (view === t.dataset.view) return;
+    view = t.dataset.view; editId = null; saidaEditId = null; home();
+  }));
+
+  if (view === "saidas") renderSaidas(); else renderEntradas();
+  window.scrollTo(0, 0);
+}
+
+// ---------- ENTRADAS (doações) ----------
+function renderEntradas() {
+  const host = app.querySelector("#viewContent");
+  const editando = editId !== null;
+  const p = editando ? DB.produtos.find(x => x.id === editId) : null;
+  const v = p || { nome: "", qtd: 1, unidade: "Unidade", data: ymd(Date.now()) };
+
+  host.innerHTML = `
   <div class="card form-card">
     <h2>${editando ? "✏️ Editar doação" : "➕ Registrar doações"}</h2>
     <div class="fsub">${editando ? "Atualize os dados da doação." : "Adicione um ou vários produtos de uma vez."}</div>
@@ -196,10 +224,6 @@ function home() {
   </div>
   <div id="list"></div>`;
 
-  // binds
-  app.querySelector("#themeBtn").addEventListener("click", toggleTheme);
-  app.querySelector("#cfgBtn").addEventListener("click", openSettings);
-  app.querySelector("#logoutBtn").addEventListener("click", logout);
   app.querySelector("#saveBtn").addEventListener("click", saveAll);
   const cancel = app.querySelector("#cancelBtn");
   if (cancel) cancel.addEventListener("click", () => { editId = null; home(); });
@@ -211,13 +235,70 @@ function home() {
   });
   app.querySelector("#f-data").addEventListener("keydown", e => { if (e.key === "Enter") saveAll(); });
 
-  // primeira linha (em edição já vem preenchida)
   addItemRow(editando ? v : null);
   updateRemoveButtons();
-
   renderList();
   if (editando) { const fi = app.querySelector(".prod-inp"); if (fi) fi.focus(); }
-  window.scrollTo(0, 0);
+}
+
+// ---------- SAÍDAS (retiradas) ----------
+function renderSaidas() {
+  const host = app.querySelector("#viewContent");
+  const editando = saidaEditId !== null;
+  const s = editando ? DB.saidas.find(x => x.id === saidaEditId) : null;
+  const v = s || { nome: "", qtd: 1, unidade: "Unidade", obs: "", data: ymd(Date.now()) };
+  const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
+
+  host.innerHTML = `
+  <div class="card form-card">
+    <h2>${editando ? "✏️ Editar saída" : "📤 Registrar saída"}</h2>
+    <div class="fsub">${editando ? "Atualize os dados da saída." : "Registre a saída de um produto do estoque."}</div>
+    <div class="form-grid">
+      <div class="field full" style="position:relative">
+        <label for="s-nome">Produto</label>
+        <input id="s-nome" class="type-input" style="text-align:left" placeholder="Produto (ex: Arroz 5kg)" value="${esc(v.nome)}" autocomplete="off">
+        <div class="suggest" id="sSuggest"></div>
+      </div>
+      <div class="field">
+        <label for="s-qtd">Quantidade</label>
+        <input id="s-qtd" class="type-input" type="number" min="1" step="1" value="${esc(v.qtd)}">
+      </div>
+      <div class="field">
+        <label for="s-unidade">Unidade</label>
+        <select id="s-unidade" class="type-input">${uniOpts}</select>
+      </div>
+      <div class="field full">
+        <label for="s-obs">Observação (opcional)</label>
+        <textarea id="s-obs" class="type-input" rows="2" placeholder="Ex: entregue à família X">${esc(v.obs)}</textarea>
+      </div>
+      <div class="field full">
+        <label for="s-data">Data da saída</label>
+        <input id="s-data" class="type-input" style="text-align:left" type="date" value="${esc(v.data)}">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" id="sSaveBtn">${editando ? "Salvar alterações" : "Registrar saída"}</button>
+      ${editando ? `<button class="btn ghost" id="sCancelBtn">Cancelar</button>` : ""}
+    </div>
+    <div id="sMsgHolder"></div>
+  </div>
+
+  <div class="section-h">Saídas registradas</div>
+  <div class="toolbar">
+    <input id="sSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar por produto ou observação…">
+  </div>
+  <div id="saidaList"></div>`;
+
+  app.querySelector("#s-unidade").value = v.unidade;
+  attachAutocomplete(app.querySelector("#s-nome"), app.querySelector("#sSuggest"));
+  app.querySelector("#sSaveBtn").addEventListener("click", salvarSaida);
+  const c = app.querySelector("#sCancelBtn");
+  if (c) c.addEventListener("click", () => { saidaEditId = null; home(); });
+  app.querySelector("#sSearch").addEventListener("input", renderSaidaList);
+  app.querySelector("#s-data").addEventListener("keydown", e => { if (e.key === "Enter") salvarSaida(); });
+
+  renderSaidaList();
+  if (editando) app.querySelector("#s-nome").focus();
 }
 
 function renderList() {
@@ -387,19 +468,29 @@ function saveAll() {
 function removerProduto(id) {
   const p = DB.produtos.find(x => x.id === id);
   if (!p) return;
-  confirmDelete(p);
+  confirmDialog({
+    title: "🗑️ Remover doação",
+    message: `Remover <b>${esc(p.nome)}</b> (${esc(p.qtd)} ${esc(p.unidade)}) das doações?<br>Essa ação não pode ser desfeita.`,
+    onOk: () => {
+      DB.produtos = DB.produtos.filter(x => x.id !== id);
+      saveDB();
+      if (editId === id) editId = null;
+      home();
+      mostrarMsg("Doação removida.", false);
+    }
+  });
 }
 
-function confirmDelete(p) {
+function confirmDialog(opts) {
   const bg = document.createElement("div");
   bg.className = "modal-bg";
   bg.innerHTML = `
   <div class="modal">
-    <h2>🗑️ Remover doação</h2>
-    <p class="confirm-text">Remover <b>${esc(p.nome)}</b> (${esc(p.qtd)} ${esc(p.unidade)}) das doações?<br>Essa ação não pode ser desfeita.</p>
+    <h2>${opts.title}</h2>
+    <p class="confirm-text">${opts.message}</p>
     <div class="confirm-actions">
       <button class="btn ghost" id="cCancel">Cancelar</button>
-      <button class="btn red" id="cOk">Excluir</button>
+      <button class="btn red" id="cOk">${opts.okLabel || "Excluir"}</button>
     </div>
   </div>`;
   document.body.appendChild(bg);
@@ -408,22 +499,92 @@ function confirmDelete(p) {
   document.addEventListener("keydown", onKey);
   bg.querySelector("#cCancel").onclick = close;
   bg.onclick = e => { if (e.target === bg) close(); };
-  bg.querySelector("#cOk").onclick = () => {
-    close();
-    DB.produtos = DB.produtos.filter(x => x.id !== p.id);
-    saveDB();
-    if (editId === p.id) editId = null;
-    home();
-    mostrarMsg("Doação removida.", false);
-  };
+  bg.querySelector("#cOk").onclick = () => { close(); if (opts.onOk) opts.onOk(); };
 }
 
-function mostrarMsg(texto, isErr) {
-  const holder = app.querySelector("#msgHolder");
+// =====================================================
+// SAÍDAS (CRUD)
+// =====================================================
+function salvarSaida() {
+  const nome = app.querySelector("#s-nome").value.trim();
+  const qtd = Math.max(1, parseInt(app.querySelector("#s-qtd").value, 10) || 1);
+  const unidade = app.querySelector("#s-unidade").value;
+  const obs = app.querySelector("#s-obs").value.trim();
+  const data = app.querySelector("#s-data").value;
+
+  if (!nome) { mostrarMsg("Informe o nome do produto.", true, "#sMsgHolder"); app.querySelector("#s-nome").focus(); return; }
+
+  if (saidaEditId !== null) {
+    const s = DB.saidas.find(x => x.id === saidaEditId);
+    if (s) Object.assign(s, { nome, qtd, unidade, obs, data });
+    saveDB();
+    saidaEditId = null;
+    home();
+    mostrarMsg("Saída atualizada com sucesso! ✅", false, "#sMsgHolder");
+  } else {
+    DB.saidas.push({ id: uid(), nome, qtd, unidade, obs, data, por: currentUser ? currentUser.id : "", ts: Date.now() });
+    saveDB();
+    home();
+    mostrarMsg("Saída registrada com sucesso! 🎉", false, "#sMsgHolder");
+  }
+}
+
+function renderSaidaList() {
+  const wrap = app.querySelector("#saidaList");
+  if (!wrap) return;
+  const busca = (app.querySelector("#sSearch").value || "").trim().toLowerCase();
+  let itens = DB.saidas.slice().reverse();
+  if (busca) itens = itens.filter(s =>
+    (s.nome || "").toLowerCase().includes(busca) || (s.obs || "").toLowerCase().includes(busca));
+
+  if (!itens.length) {
+    wrap.innerHTML = DB.saidas.length
+      ? `<div class="empty-note"><div class="big">🔎</div>Nenhuma saída encontrada.</div>`
+      : `<div class="empty-note"><div class="big">📤</div>Nenhuma saída registrada ainda.<br>Registre a primeira no formulário acima!</div>`;
+    return;
+  }
+
+  wrap.innerHTML = itens.map(s => `
+    <div class="prod">
+      <div class="picon">📤</div>
+      <div class="prod-info">
+        <h3>${esc(s.nome)}</h3>
+        <p><span class="qty">${esc(s.qtd)} ${esc(s.unidade)}</span> · ${dataBR(s.data)}</p>
+        ${s.obs ? `<p class="prod-obs">📝 ${esc(s.obs)}</p>` : ""}
+      </div>
+      <div class="row-actions">
+        <button class="icon-btn" title="Editar" data-sedit="${s.id}">✏️</button>
+        <button class="icon-btn del" title="Remover" data-sdel="${s.id}">🗑️</button>
+      </div>
+    </div>`).join("");
+
+  wrap.querySelectorAll("[data-sedit]").forEach(b => b.onclick = () => { saidaEditId = b.dataset.sedit; home(); });
+  wrap.querySelectorAll("[data-sdel]").forEach(b => b.onclick = () => removerSaida(b.dataset.sdel));
+}
+
+function removerSaida(id) {
+  const s = DB.saidas.find(x => x.id === id);
+  if (!s) return;
+  confirmDialog({
+    title: "🗑️ Remover saída",
+    message: `Remover a saída de <b>${esc(s.nome)}</b> (${esc(s.qtd)} ${esc(s.unidade)})?<br>Essa ação não pode ser desfeita.`,
+    onOk: () => {
+      DB.saidas = DB.saidas.filter(x => x.id !== id);
+      saveDB();
+      if (saidaEditId === id) saidaEditId = null;
+      home();
+      mostrarMsg("Saída removida.", false, "#sMsgHolder");
+    }
+  });
+}
+
+function mostrarMsg(texto, isErr, holderSel) {
+  const sel = holderSel || "#msgHolder";
+  const holder = app.querySelector(sel);
   if (!holder) return;
   holder.innerHTML = `<div class="form-msg ${isErr ? "err" : ""}">${esc(texto)}</div>`;
   clearTimeout(mostrarMsg._t);
-  mostrarMsg._t = setTimeout(() => { const h = app.querySelector("#msgHolder"); if (h) h.innerHTML = ""; }, 3500);
+  mostrarMsg._t = setTimeout(() => { const h = app.querySelector(sel); if (h) h.innerHTML = ""; }, 3500);
 }
 
 // =====================================================
