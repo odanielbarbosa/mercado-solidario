@@ -387,11 +387,35 @@ function saveAll() {
 function removerProduto(id) {
   const p = DB.produtos.find(x => x.id === id);
   if (!p) return;
-  if (!confirm(`Remover "${p.nome}" das doações?`)) return;
-  DB.produtos = DB.produtos.filter(x => x.id !== id);
-  saveDB();
-  if (editId === id) editId = null;
-  home();
+  confirmDelete(p);
+}
+
+function confirmDelete(p) {
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+  <div class="modal">
+    <h2>🗑️ Remover doação</h2>
+    <p class="confirm-text">Remover <b>${esc(p.nome)}</b> (${esc(p.qtd)} ${esc(p.unidade)}) das doações?<br>Essa ação não pode ser desfeita.</p>
+    <div class="confirm-actions">
+      <button class="btn ghost" id="cCancel">Cancelar</button>
+      <button class="btn red" id="cOk">Excluir</button>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+  const onKey = e => { if (e.key === "Escape") close(); };
+  function close() { document.removeEventListener("keydown", onKey); bg.remove(); }
+  document.addEventListener("keydown", onKey);
+  bg.querySelector("#cCancel").onclick = close;
+  bg.onclick = e => { if (e.target === bg) close(); };
+  bg.querySelector("#cOk").onclick = () => {
+    close();
+    DB.produtos = DB.produtos.filter(x => x.id !== p.id);
+    saveDB();
+    if (editId === p.id) editId = null;
+    home();
+    mostrarMsg("Doação removida.", false);
+  };
 }
 
 function mostrarMsg(texto, isErr) {
