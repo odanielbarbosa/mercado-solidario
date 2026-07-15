@@ -175,29 +175,16 @@ function home() {
   </div>
 
   <div class="card form-card">
-    <h2>${editando ? "✏️ Editar doação" : "➕ Registrar doação"}</h2>
-    <div class="fsub">Preencha os dados do produto doado para a igreja.</div>
-    <div class="form-grid">
-      <div class="field full" style="position:relative">
-        <label for="f-nome">Produto</label>
-        <input id="f-nome" class="type-input" style="text-align:left" placeholder="Ex: Arroz 5kg, Camiseta, Sabonete…" value="${esc(v.nome)}" autocomplete="off">
-        <div class="suggest" id="nomeSuggest"></div>
-      </div>
-      <div class="field">
-        <label for="f-qtd">Quantidade</label>
-        <input id="f-qtd" class="type-input" type="number" min="1" step="1" value="${esc(v.qtd)}">
-      </div>
-      <div class="field">
-        <label for="f-unidade">Unidade</label>
-        <select id="f-unidade" class="type-input">${uniOpts}</select>
-      </div>
-      <div class="field full">
-        <label for="f-data">Data da doação</label>
-        <input id="f-data" class="type-input" style="text-align:left" type="date" value="${esc(v.data)}">
-      </div>
+    <h2>${editando ? "✏️ Editar doação" : "➕ Registrar doações"}</h2>
+    <div class="fsub">${editando ? "Atualize os dados da doação." : "Adicione um ou vários produtos de uma vez."}</div>
+    <div id="itemRows"></div>
+    ${editando ? "" : `<button class="add-row-btn" id="addRowBtn">＋ Adicionar outro produto</button>`}
+    <div class="field full" style="margin-top:14px">
+      <label for="f-data">Data da doação</label>
+      <input id="f-data" class="type-input" style="text-align:left" type="date" value="${esc(v.data)}">
     </div>
     <div class="form-actions">
-      <button class="btn" id="saveBtn">${editando ? "Salvar alterações" : "Adicionar doação"}</button>
+      <button class="btn" id="saveBtn">${editando ? "Salvar alterações" : "Adicionar doações"}</button>
       ${editando ? `<button class="btn ghost" id="cancelBtn">Cancelar</button>` : ""}
     </div>
     <div id="msgHolder"></div>
@@ -209,22 +196,27 @@ function home() {
   </div>
   <div id="list"></div>`;
 
-  // valor do select de unidade
-  app.querySelector("#f-unidade").value = v.unidade;
-
   // binds
   app.querySelector("#themeBtn").addEventListener("click", toggleTheme);
   app.querySelector("#cfgBtn").addEventListener("click", openSettings);
   app.querySelector("#logoutBtn").addEventListener("click", logout);
-  app.querySelector("#saveBtn").addEventListener("click", salvarProduto);
+  app.querySelector("#saveBtn").addEventListener("click", saveAll);
   const cancel = app.querySelector("#cancelBtn");
   if (cancel) cancel.addEventListener("click", () => { editId = null; home(); });
   app.querySelector("#search").addEventListener("input", renderList);
-  app.querySelector("#f-nome").addEventListener("keydown", e => { if (e.key === "Enter") salvarProduto(); });
+  const addRowBtn = app.querySelector("#addRowBtn");
+  if (addRowBtn) addRowBtn.addEventListener("click", () => {
+    const r = addItemRow(); updateRemoveButtons();
+    const inp = r && r.querySelector(".prod-inp"); if (inp) inp.focus();
+  });
+  app.querySelector("#f-data").addEventListener("keydown", e => { if (e.key === "Enter") saveAll(); });
 
-  setupNomeAutocomplete();
+  // primeira linha (em edição já vem preenchida)
+  addItemRow(editando ? v : null);
+  updateRemoveButtons();
+
   renderList();
-  if (editando) app.querySelector("#f-nome").focus();
+  if (editando) { const fi = app.querySelector(".prod-inp"); if (fi) fi.focus(); }
   window.scrollTo(0, 0);
 }
 
@@ -272,13 +264,9 @@ function distinctNomes() {
   return out;
 }
 
-function setupNomeAutocomplete() {
-  const inp = app.querySelector("#f-nome");
-  const box = app.querySelector("#nomeSuggest");
-  if (!inp || !box) return;
+function attachAutocomplete(inp, box) {
   const todos = distinctNomes();
-  if (!todos.length) return; // sem histórico, nada a sugerir
-
+  if (!todos.length) return;
   const render = () => {
     const q = inp.value.trim().toLowerCase();
     let lista = q ? todos.filter(n => n.toLowerCase().startsWith(q) && n.toLowerCase() !== q) : todos;
@@ -293,40 +281,107 @@ function setupNomeAutocomplete() {
       inp.focus();
     }));
   };
-
   inp.addEventListener("input", render);
   inp.addEventListener("focus", render);
   inp.addEventListener("blur", () => setTimeout(() => box.classList.remove("open"), 150));
-  inp.addEventListener("keydown", e => { if (e.key === "Escape") box.classList.remove("open"); });
+}
+
+// cria uma linha de produto no formulário (para adicionar vários de uma vez)
+function addItemRow(vals) {
+  const rows = app.querySelector("#itemRows");
+  if (!rows) return null;
+  const v = vals || { nome: "", qtd: 1, unidade: "Unidade" };
+  const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
+  const row = document.createElement("div");
+  row.className = "item-row";
+  row.innerHTML = `
+    <div class="ir-name">
+      <input class="type-input prod-inp" style="text-align:left" placeholder="Produto (ex: Arroz 5kg)" value="${esc(v.nome)}" autocomplete="off">
+      <div class="suggest prod-sug"></div>
+    </div>
+    <div class="ir-sub">
+      <input class="type-input qty-inp" type="number" min="1" step="1" value="${esc(v.qtd)}" title="Quantidade">
+      <select class="type-input unit-inp" title="Unidade">${uniOpts}</select>
+      <button class="ir-del" title="Remover produto">✕</button>
+    </div>`;
+  rows.appendChild(row);
+  row.querySelector(".unit-inp").value = v.unidade;
+
+  const prodInp = row.querySelector(".prod-inp");
+  const box = row.querySelector(".prod-sug");
+  attachAutocomplete(prodInp, box);
+  prodInp.addEventListener("keydown", e => {
+    if (e.key === "Escape") { box.classList.remove("open"); return; }
+    if (e.key === "Enter") { if (box.classList.contains("open")) box.classList.remove("open"); else saveAll(); }
+  });
+  row.querySelector(".qty-inp").addEventListener("keydown", e => { if (e.key === "Enter") saveAll(); });
+  row.querySelector(".ir-del").addEventListener("click", () => {
+    const total = app.querySelectorAll("#itemRows .item-row").length;
+    if (total <= 1) {
+      prodInp.value = ""; row.querySelector(".qty-inp").value = "1"; row.querySelector(".unit-inp").value = "Unidade"; prodInp.focus();
+    } else {
+      row.remove(); updateRemoveButtons();
+    }
+  });
+  return row;
+}
+
+function updateRemoveButtons() {
+  const rowsEls = app.querySelectorAll("#itemRows .item-row");
+  const mostrar = rowsEls.length > 1 && editId === null;
+  rowsEls.forEach(r => { const d = r.querySelector(".ir-del"); if (d) d.style.display = mostrar ? "" : "none"; });
 }
 
 // =====================================================
 // CRUD
 // =====================================================
-function salvarProduto() {
-  const nome = app.querySelector("#f-nome").value.trim();
-  const qtd = Math.max(1, parseInt(app.querySelector("#f-qtd").value, 10) || 1);
-  const unidade = app.querySelector("#f-unidade").value;
+function saveAll() {
   const data = app.querySelector("#f-data").value;
 
-  if (!nome) { mostrarMsg("Informe o nome do produto.", true); app.querySelector("#f-nome").focus(); return; }
-
+  // edição: uma única linha atualiza o produto existente
   if (editId !== null) {
+    const row = app.querySelector("#itemRows .item-row");
+    const nome = row.querySelector(".prod-inp").value.trim();
+    const qtd = Math.max(1, parseInt(row.querySelector(".qty-inp").value, 10) || 1);
+    const unidade = row.querySelector(".unit-inp").value;
+    if (!nome) { mostrarMsg("Informe o nome do produto.", true); row.querySelector(".prod-inp").focus(); return; }
     const p = DB.produtos.find(x => x.id === editId);
     if (p) Object.assign(p, { nome, qtd, unidade, data });
     saveDB();
     editId = null;
     home();
     mostrarMsg("Doação atualizada com sucesso! ✅", false);
-  } else {
-    DB.produtos.push({
-      id: uid(), nome, qtd, unidade, data,
-      por: currentUser ? currentUser.id : "", ts: Date.now()
-    });
-    saveDB();
-    home();
-    mostrarMsg("Doação adicionada com sucesso! 🎉", false);
+    return;
   }
+
+  // adição: cada linha com produto vira um registro
+  const itens = [];
+  app.querySelectorAll("#itemRows .item-row").forEach(row => {
+    const nome = row.querySelector(".prod-inp").value.trim();
+    if (!nome) return;
+    const qtd = Math.max(1, parseInt(row.querySelector(".qty-inp").value, 10) || 1);
+    const unidade = row.querySelector(".unit-inp").value;
+    itens.push({ nome, qtd, unidade });
+  });
+
+  if (!itens.length) {
+    mostrarMsg("Informe pelo menos um produto.", true);
+    const fi = app.querySelector(".prod-inp"); if (fi) fi.focus();
+    return;
+  }
+
+  const agora = Date.now();
+  itens.forEach((it, i) => {
+    DB.produtos.push({
+      id: uid(), nome: it.nome, qtd: it.qtd, unidade: it.unidade, data,
+      por: currentUser ? currentUser.id : "", ts: agora + i
+    });
+  });
+  saveDB();
+  home();
+  mostrarMsg(itens.length === 1
+    ? "Doação adicionada com sucesso! 🎉"
+    : `${itens.length} doações adicionadas com sucesso! 🎉`, false);
 }
 
 function removerProduto(id) {
