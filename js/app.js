@@ -251,7 +251,7 @@ function renderSaidas() {
   const host = app.querySelector("#viewContent");
   const editando = saidaEditId !== null;
   const s = editando ? DB.saidas.find(x => x.id === saidaEditId) : null;
-  const v = s || { nome: "", qtd: 1, unidade: "Unidade", obs: "", data: ymd(Date.now()) };
+  const v = s || { nome: "", qtd: 1, unidade: "Unidade", familia: "", obs: "", data: ymd(Date.now()) };
   const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
 
   host.innerHTML = `
@@ -272,6 +272,11 @@ function renderSaidas() {
         <label for="s-unidade">Unidade</label>
         <select id="s-unidade" class="type-input">${uniOpts}</select>
       </div>
+      <div class="field full" style="position:relative">
+        <label for="s-familia">Família (opcional)</label>
+        <input id="s-familia" class="type-input" style="text-align:left" placeholder="Família que recebeu (digite ou escolha)" value="${esc(v.familia || "")}" autocomplete="off">
+        <div class="suggest" id="sFamSuggest"></div>
+      </div>
       <div class="field full">
         <label for="s-obs">Observação (opcional)</label>
         <textarea id="s-obs" class="type-input" rows="2" placeholder="Ex: entregue à família X">${esc(v.obs)}</textarea>
@@ -290,12 +295,13 @@ function renderSaidas() {
 
   <div class="section-h">Saídas registradas</div>
   <div class="toolbar">
-    <input id="sSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar por produto ou observação…">
+    <input id="sSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar por produto, família ou observação…">
   </div>
   <div id="saidaList"></div>`;
 
   app.querySelector("#s-unidade").value = v.unidade;
   attachAutocomplete(app.querySelector("#s-nome"), app.querySelector("#sSuggest"));
+  attachAutocomplete(app.querySelector("#s-familia"), app.querySelector("#sFamSuggest"), distinctFamilias());
   app.querySelector("#sSaveBtn").addEventListener("click", salvarSaida);
   const c = app.querySelector("#sCancelBtn");
   if (c) c.addEventListener("click", () => { saidaEditId = null; home(); });
@@ -405,8 +411,19 @@ function distinctNomes() {
   return out;
 }
 
-function attachAutocomplete(inp, box) {
-  const todos = distinctNomes();
+// nomes distintos das famílias cadastradas (mais recentes primeiro)
+function distinctFamilias() {
+  const seen = new Set(), out = [];
+  for (let i = DB.familias.length - 1; i >= 0; i--) {
+    const nome = (DB.familias[i].nome || "").trim();
+    const key = nome.toLowerCase();
+    if (nome && !seen.has(key)) { seen.add(key); out.push(nome); }
+  }
+  return out;
+}
+
+function attachAutocomplete(inp, box, source) {
+  const todos = source || distinctNomes();
   if (!todos.length) return;
   const render = () => {
     const q = inp.value.trim().toLowerCase();
@@ -569,6 +586,7 @@ function salvarSaida() {
   const nome = app.querySelector("#s-nome").value.trim();
   const qtd = Math.max(1, parseInt(app.querySelector("#s-qtd").value, 10) || 1);
   const unidade = app.querySelector("#s-unidade").value;
+  const familia = app.querySelector("#s-familia").value.trim();
   const obs = app.querySelector("#s-obs").value.trim();
   const data = app.querySelector("#s-data").value;
 
@@ -576,13 +594,13 @@ function salvarSaida() {
 
   if (saidaEditId !== null) {
     const s = DB.saidas.find(x => x.id === saidaEditId);
-    if (s) Object.assign(s, { nome, qtd, unidade, obs, data });
+    if (s) Object.assign(s, { nome, qtd, unidade, familia, obs, data });
     saveDB();
     saidaEditId = null;
     home();
     mostrarMsg("Saída atualizada com sucesso! ✅", false, "#sMsgHolder");
   } else {
-    DB.saidas.push({ id: uid(), nome, qtd, unidade, obs, data, por: currentUser ? currentUser.id : "", ts: Date.now() });
+    DB.saidas.push({ id: uid(), nome, qtd, unidade, familia, obs, data, por: currentUser ? currentUser.id : "", ts: Date.now() });
     saveDB();
     home();
     mostrarMsg("Saída registrada com sucesso! 🎉", false, "#sMsgHolder");
@@ -595,7 +613,9 @@ function renderSaidaList() {
   const busca = (app.querySelector("#sSearch").value || "").trim().toLowerCase();
   let itens = DB.saidas.slice().reverse();
   if (busca) itens = itens.filter(s =>
-    (s.nome || "").toLowerCase().includes(busca) || (s.obs || "").toLowerCase().includes(busca));
+    (s.nome || "").toLowerCase().includes(busca) ||
+    (s.familia || "").toLowerCase().includes(busca) ||
+    (s.obs || "").toLowerCase().includes(busca));
 
   if (!itens.length) {
     wrap.innerHTML = DB.saidas.length
@@ -609,7 +629,7 @@ function renderSaidaList() {
       <div class="picon">📤</div>
       <div class="prod-info">
         <h3>${esc(s.nome)}</h3>
-        <p><span class="qty">${esc(s.qtd)} ${esc(s.unidade)}</span> · ${dataBR(s.data)}</p>
+        <p><span class="qty">${esc(s.qtd)} ${esc(s.unidade)}</span> · ${dataBR(s.data)}${s.familia ? " · 👪 " + esc(s.familia) : ""}</p>
         ${s.obs ? `<p class="prod-obs">📝 ${esc(s.obs)}</p>` : ""}
       </div>
       <div class="row-actions">
