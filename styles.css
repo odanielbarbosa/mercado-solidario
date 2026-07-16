@@ -374,4 +374,5 @@ textarea.type-input { resize: vertical; min-height: 58px; font-family: inherit; 
   .stats { font-size: 13px; }
   .form-grid { grid-template-columns: 1fr; }
   .unit-row .un { flex-basis: 92px; }
+  .tabs .tab { font-size: 13px; padding: 11px 4px; }
 }

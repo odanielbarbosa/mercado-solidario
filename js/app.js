@@ -8,9 +8,10 @@ const THEME_KEY = "mercado-solidario-theme";
 const BASE_USERS = window.USERS || [];        // usuários "oficiais" (js/users.js)
 const USERS_KEY = "mercado-solidario-users";  // usuários criados pelo app (neste navegador)
 let currentUser = null;
-let editId = null;        // id da entrada (doação) em edição
-let saidaEditId = null;   // id da saída em edição
-let view = "entradas";    // aba atual: "entradas" | "saidas"
+let editId = null;         // id da entrada (doação) em edição
+let saidaEditId = null;    // id da saída em edição
+let familiaEditId = null;  // id da família em edição
+let view = "entradas";     // aba atual: "entradas" | "saidas" | "familias"
 
 const UNIDADES = ["Gramas", "Quilos", "Caixas", "Pacotes", "Unidade"];
 const AVATAR_CORES = ["#1cb0f6", "#58cc02", "#ce82ff", "#ff9600", "#ffc800", "#ff4b4b", "#2ec4b6"];
@@ -25,7 +26,8 @@ function normalizeDB(raw) {
   return {
     v: DB_VERSION,
     produtos: Array.isArray(d.produtos) ? d.produtos : [],
-    saidas: Array.isArray(d.saidas) ? d.saidas : []
+    saidas: Array.isArray(d.saidas) ? d.saidas : [],
+    familias: Array.isArray(d.familias) ? d.familias : []
   };
 }
 let DB = normalizeDB(null);
@@ -178,6 +180,7 @@ function home() {
   <div class="tabs">
     <button class="tab ${view === "entradas" ? "active" : ""}" data-view="entradas">📥 Entradas</button>
     <button class="tab ${view === "saidas" ? "active" : ""}" data-view="saidas">📤 Saídas</button>
+    <button class="tab ${view === "familias" ? "active" : ""}" data-view="familias">👪 Famílias</button>
   </div>
 
   <div id="viewContent"></div>`;
@@ -187,10 +190,12 @@ function home() {
   app.querySelector("#logoutBtn").addEventListener("click", logout);
   app.querySelectorAll(".tabs .tab").forEach(t => t.addEventListener("click", () => {
     if (view === t.dataset.view) return;
-    view = t.dataset.view; editId = null; saidaEditId = null; home();
+    view = t.dataset.view; editId = null; saidaEditId = null; familiaEditId = null; home();
   }));
 
-  if (view === "saidas") renderSaidas(); else renderEntradas();
+  if (view === "saidas") renderSaidas();
+  else if (view === "familias") renderFamilias();
+  else renderEntradas();
   window.scrollTo(0, 0);
 }
 
@@ -299,6 +304,61 @@ function renderSaidas() {
 
   renderSaidaList();
   if (editando) app.querySelector("#s-nome").focus();
+}
+
+// ---------- FAMÍLIAS (cadastro) ----------
+function renderFamilias() {
+  const host = app.querySelector("#viewContent");
+  const editando = familiaEditId !== null;
+  const f = editando ? DB.familias.find(x => x.id === familiaEditId) : null;
+  const v = f || { nome: "", telefone: "", pessoas: "", endereco: "", obs: "" };
+
+  host.innerHTML = `
+  <div class="card form-card">
+    <h2>${editando ? "✏️ Editar família" : "👪 Cadastrar família"}</h2>
+    <div class="fsub">${editando ? "Atualize os dados da família." : "Cadastre uma família atendida pela igreja."}</div>
+    <div class="form-grid">
+      <div class="field full">
+        <label for="fm-nome">Nome da família / responsável</label>
+        <input id="fm-nome" class="type-input" style="text-align:left" placeholder="Ex: Família Silva" value="${esc(v.nome)}">
+      </div>
+      <div class="field">
+        <label for="fm-tel">Telefone (opcional)</label>
+        <input id="fm-tel" class="type-input" style="text-align:left" type="tel" inputmode="tel" placeholder="(00) 00000-0000" value="${esc(v.telefone)}">
+      </div>
+      <div class="field">
+        <label for="fm-pessoas">Nº de pessoas (opcional)</label>
+        <input id="fm-pessoas" class="type-input" type="number" min="1" step="1" placeholder="Ex: 4" value="${esc(v.pessoas)}">
+      </div>
+      <div class="field full">
+        <label for="fm-end">Endereço (opcional)</label>
+        <input id="fm-end" class="type-input" style="text-align:left" placeholder="Rua, nº, bairro" value="${esc(v.endereco)}">
+      </div>
+      <div class="field full">
+        <label for="fm-obs">Observação (opcional)</label>
+        <textarea id="fm-obs" class="type-input" rows="2" placeholder="Ex: recebe cesta mensal">${esc(v.obs)}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" id="fmSaveBtn">${editando ? "Salvar alterações" : "Cadastrar família"}</button>
+      ${editando ? `<button class="btn ghost" id="fmCancelBtn">Cancelar</button>` : ""}
+    </div>
+    <div id="fmMsgHolder"></div>
+  </div>
+
+  <div class="section-h">Famílias cadastradas</div>
+  <div class="toolbar">
+    <input id="fmSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar por nome, telefone ou endereço…">
+  </div>
+  <div id="familiaList"></div>`;
+
+  app.querySelector("#fmSaveBtn").addEventListener("click", salvarFamilia);
+  const c = app.querySelector("#fmCancelBtn");
+  if (c) c.addEventListener("click", () => { familiaEditId = null; home(); });
+  app.querySelector("#fmSearch").addEventListener("input", renderFamiliaList);
+
+  renderFamiliaList();
+  if (editando) app.querySelector("#fm-nome").focus();
 }
 
 function renderList() {
@@ -574,6 +634,92 @@ function removerSaida(id) {
       if (saidaEditId === id) saidaEditId = null;
       home();
       mostrarMsg("Saída removida.", false, "#sMsgHolder");
+    }
+  });
+}
+
+// =====================================================
+// FAMÍLIAS (CRUD)
+// =====================================================
+function salvarFamilia() {
+  const nome = app.querySelector("#fm-nome").value.trim();
+  const telefone = app.querySelector("#fm-tel").value.trim();
+  const np = parseInt(app.querySelector("#fm-pessoas").value, 10);
+  const pessoas = np > 0 ? np : "";
+  const endereco = app.querySelector("#fm-end").value.trim();
+  const obs = app.querySelector("#fm-obs").value.trim();
+
+  if (!nome) { mostrarMsg("Informe o nome da família.", true, "#fmMsgHolder"); app.querySelector("#fm-nome").focus(); return; }
+
+  if (familiaEditId !== null) {
+    const f = DB.familias.find(x => x.id === familiaEditId);
+    if (f) Object.assign(f, { nome, telefone, pessoas, endereco, obs });
+    saveDB();
+    familiaEditId = null;
+    home();
+    mostrarMsg("Família atualizada com sucesso! ✅", false, "#fmMsgHolder");
+  } else {
+    DB.familias.push({ id: uid(), nome, telefone, pessoas, endereco, obs, por: currentUser ? currentUser.id : "", ts: Date.now() });
+    saveDB();
+    home();
+    mostrarMsg("Família cadastrada com sucesso! 🎉", false, "#fmMsgHolder");
+  }
+}
+
+function renderFamiliaList() {
+  const wrap = app.querySelector("#familiaList");
+  if (!wrap) return;
+  const busca = (app.querySelector("#fmSearch").value || "").trim().toLowerCase();
+  let itens = DB.familias.slice().reverse();
+  if (busca) itens = itens.filter(f =>
+    (f.nome || "").toLowerCase().includes(busca) ||
+    (f.telefone || "").toLowerCase().includes(busca) ||
+    (f.endereco || "").toLowerCase().includes(busca));
+
+  if (!itens.length) {
+    wrap.innerHTML = DB.familias.length
+      ? `<div class="empty-note"><div class="big">🔎</div>Nenhuma família encontrada.</div>`
+      : `<div class="empty-note"><div class="big">👪</div>Nenhuma família cadastrada ainda.<br>Cadastre a primeira no formulário acima!</div>`;
+    return;
+  }
+
+  wrap.innerHTML = itens.map(f => {
+    const linha = [];
+    if (f.pessoas) linha.push("👥 " + esc(f.pessoas) + " pessoa" + (Number(f.pessoas) === 1 ? "" : "s"));
+    if (f.telefone) linha.push("📞 " + esc(f.telefone));
+    if (!linha.length) linha.push("cadastrada em " + dmy(f.ts || Date.now()));
+    return `
+    <div class="prod">
+      <div class="picon">👪</div>
+      <div class="prod-info">
+        <h3>${esc(f.nome)}</h3>
+        <p>${linha.join(" · ")}</p>
+        ${f.endereco ? `<p class="prod-obs">📍 ${esc(f.endereco)}</p>` : ""}
+        ${f.obs ? `<p class="prod-obs">📝 ${esc(f.obs)}</p>` : ""}
+      </div>
+      <div class="row-actions">
+        <button class="icon-btn" title="Editar" data-fedit="${f.id}">✏️</button>
+        <button class="icon-btn del" title="Remover" data-fdel="${f.id}">🗑️</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  wrap.querySelectorAll("[data-fedit]").forEach(b => b.onclick = () => { familiaEditId = b.dataset.fedit; home(); });
+  wrap.querySelectorAll("[data-fdel]").forEach(b => b.onclick = () => removerFamilia(b.dataset.fdel));
+}
+
+function removerFamilia(id) {
+  const f = DB.familias.find(x => x.id === id);
+  if (!f) return;
+  confirmDialog({
+    title: "🗑️ Remover família",
+    message: `Remover <b>${esc(f.nome)}</b> do cadastro?<br>Essa ação não pode ser desfeita.`,
+    onOk: () => {
+      DB.familias = DB.familias.filter(x => x.id !== id);
+      saveDB();
+      if (familiaEditId === id) familiaEditId = null;
+      home();
+      mostrarMsg("Família removida.", false, "#fmMsgHolder");
     }
   });
 }
