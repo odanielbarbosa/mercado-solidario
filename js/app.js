@@ -310,7 +310,7 @@ function renderFamilias() {
   const host = app.querySelector("#viewContent");
   const editando = familiaEditId !== null;
   const f = editando ? DB.familias.find(x => x.id === familiaEditId) : null;
-  const v = f || { nome: "", endereco: "" };
+  const v = f || { nome: "", obs: "" };
 
   host.innerHTML = `
   <div class="card form-card">
@@ -322,8 +322,8 @@ function renderFamilias() {
         <input id="fm-nome" class="type-input" style="text-align:left" placeholder="Ex: Família Silva" value="${esc(v.nome)}">
       </div>
       <div class="field full">
-        <label for="fm-end">Endereço (opcional)</label>
-        <input id="fm-end" class="type-input" style="text-align:left" placeholder="Rua, nº, bairro" value="${esc(v.endereco)}">
+        <label for="fm-obs">Observação (opcional)</label>
+        <textarea id="fm-obs" class="type-input" rows="2" placeholder="Ex: recebe cesta mensal">${esc(v.obs)}</textarea>
       </div>
     </div>
     <div class="form-actions">
@@ -335,7 +335,7 @@ function renderFamilias() {
 
   <div class="section-h">Famílias cadastradas</div>
   <div class="toolbar">
-    <input id="fmSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar por nome ou endereço…">
+    <input id="fmSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar por nome ou observação…">
   </div>
   <div id="familiaList"></div>`;
 
@@ -677,25 +677,25 @@ function garantirFamilia(nome) {
   if (!n) return;
   const existe = DB.familias.some(f => (f.nome || "").trim().toLowerCase() === n.toLowerCase());
   if (!existe) {
-    DB.familias.push({ id: uid(), nome: n, endereco: "", por: currentUser ? currentUser.id : "", ts: Date.now() });
+    DB.familias.push({ id: uid(), nome: n, obs: "", por: currentUser ? currentUser.id : "", ts: Date.now() });
   }
 }
 
 function salvarFamilia() {
   const nome = app.querySelector("#fm-nome").value.trim();
-  const endereco = app.querySelector("#fm-end").value.trim();
+  const obs = app.querySelector("#fm-obs").value.trim();
 
   if (!nome) { mostrarMsg("Informe o nome da família.", true, "#fmMsgHolder"); app.querySelector("#fm-nome").focus(); return; }
 
   if (familiaEditId !== null) {
     const f = DB.familias.find(x => x.id === familiaEditId);
-    if (f) Object.assign(f, { nome, endereco });
+    if (f) Object.assign(f, { nome, obs });
     saveDB();
     familiaEditId = null;
     home();
     mostrarMsg("Família atualizada com sucesso! ✅", false, "#fmMsgHolder");
   } else {
-    DB.familias.push({ id: uid(), nome, endereco, por: currentUser ? currentUser.id : "", ts: Date.now() });
+    DB.familias.push({ id: uid(), nome, obs, por: currentUser ? currentUser.id : "", ts: Date.now() });
     saveDB();
     home();
     mostrarMsg("Família cadastrada com sucesso! 🎉", false, "#fmMsgHolder");
@@ -709,7 +709,7 @@ function renderFamiliaList() {
   let itens = DB.familias.slice().reverse();
   if (busca) itens = itens.filter(f =>
     (f.nome || "").toLowerCase().includes(busca) ||
-    (f.endereco || "").toLowerCase().includes(busca));
+    (f.obs || "").toLowerCase().includes(busca));
 
   if (!itens.length) {
     wrap.innerHTML = DB.familias.length
@@ -723,7 +723,7 @@ function renderFamiliaList() {
       <div class="picon">👪</div>
       <div class="prod-info">
         <h3>${esc(f.nome)}</h3>
-        <p>${f.endereco ? "📍 " + esc(f.endereco) : "cadastrada em " + dmy(f.ts || Date.now())}</p>
+        <p>${f.obs ? "📝 " + esc(f.obs) : "cadastrada em " + dmy(f.ts || Date.now())}</p>
       </div>
       <div class="row-actions">
         <button class="icon-btn" title="Editar" data-fedit="${f.id}">✏️</button>

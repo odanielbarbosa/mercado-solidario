@@ -10,6 +10,6 @@
     { "id": "sx1", "nome": "Arroz 5kg", "qtd": 2, "unidade": "Pacotes", "familia": "Família Silva", "obs": "Cesta mensal", "data": "2026-07-13", "por": "daniel_ms", "ts": 1783791680000 }
   ],
   "familias": [
-    { "id": "fm1", "nome": "Família Silva", "endereco": "Rua das Flores, 123 - Centro", "por": "daniel_ms", "ts": 1783705280000 }
+    { "id": "fm1", "nome": "Família Silva", "obs": "Recebe cesta mensal", "por": "daniel_ms", "ts": 1783705280000 }
   ]
 }
