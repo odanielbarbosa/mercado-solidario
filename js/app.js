@@ -252,26 +252,14 @@ function renderSaidas() {
   const editando = saidaEditId !== null;
   const s = editando ? DB.saidas.find(x => x.id === saidaEditId) : null;
   const v = s || { nome: "", qtd: 1, unidade: "Unidade", familia: "", obs: "", data: ymd(Date.now()) };
-  const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
 
   host.innerHTML = `
   <div class="card form-card">
     <h2>${editando ? "✏️ Editar saída" : "📤 Registrar saída"}</h2>
-    <div class="fsub">${editando ? "Atualize os dados da saída." : "Registre a saída de um produto do estoque."}</div>
-    <div class="form-grid">
-      <div class="field full" style="position:relative">
-        <label for="s-nome">Produto</label>
-        <input id="s-nome" class="type-input" style="text-align:left" placeholder="Produto (ex: Arroz 5kg)" value="${esc(v.nome)}" autocomplete="off">
-        <div class="suggest" id="sSuggest"></div>
-      </div>
-      <div class="field">
-        <label for="s-qtd">Quantidade</label>
-        <input id="s-qtd" class="type-input" type="number" min="1" step="1" value="${esc(v.qtd)}">
-      </div>
-      <div class="field">
-        <label for="s-unidade">Unidade</label>
-        <select id="s-unidade" class="type-input">${uniOpts}</select>
-      </div>
+    <div class="fsub">${editando ? "Atualize os dados da saída." : "Registre a saída de um ou vários produtos de uma vez."}</div>
+    <div id="itemRows"></div>
+    ${editando ? "" : `<button class="add-row-btn" id="addRowBtn">＋ Adicionar outro produto</button>`}
+    <div class="form-grid" style="margin-top:14px">
       <div class="field full" style="position:relative">
         <label for="s-familia">Família (opcional)</label>
         <input id="s-familia" class="type-input" style="text-align:left" placeholder="Família que recebeu (digite ou escolha)" value="${esc(v.familia || "")}" autocomplete="off">
@@ -299,17 +287,22 @@ function renderSaidas() {
   </div>
   <div id="saidaList"></div>`;
 
-  app.querySelector("#s-unidade").value = v.unidade;
-  attachAutocomplete(app.querySelector("#s-nome"), app.querySelector("#sSuggest"));
   attachAutocomplete(app.querySelector("#s-familia"), app.querySelector("#sFamSuggest"), distinctFamilias());
   app.querySelector("#sSaveBtn").addEventListener("click", salvarSaida);
   const c = app.querySelector("#sCancelBtn");
   if (c) c.addEventListener("click", () => { saidaEditId = null; home(); });
   app.querySelector("#sSearch").addEventListener("input", renderSaidaList);
   app.querySelector("#s-data").addEventListener("keydown", e => { if (e.key === "Enter") salvarSaida(); });
+  const addRowBtn = app.querySelector("#addRowBtn");
+  if (addRowBtn) addRowBtn.addEventListener("click", () => {
+    const r = addItemRow(null, salvarSaida); updateRemoveButtons();
+    const inp = r && r.querySelector(".prod-inp"); if (inp) inp.focus();
+  });
 
+  addItemRow(editando ? v : null, salvarSaida);
+  updateRemoveButtons();
   renderSaidaList();
-  if (editando) app.querySelector("#s-nome").focus();
+  if (editando) { const fi = app.querySelector(".prod-inp"); if (fi) fi.focus(); }
 }
 
 // ---------- FAMÍLIAS (cadastro) ----------
@@ -445,9 +438,10 @@ function attachAutocomplete(inp, box, source) {
 }
 
 // cria uma linha de produto no formulário (para adicionar vários de uma vez)
-function addItemRow(vals) {
+function addItemRow(vals, onEnter) {
   const rows = app.querySelector("#itemRows");
   if (!rows) return null;
+  const save = onEnter || saveAll;
   const v = vals || { nome: "", qtd: 1, unidade: "Unidade" };
   const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
   const row = document.createElement("div");
@@ -470,9 +464,9 @@ function addItemRow(vals) {
   attachAutocomplete(prodInp, box);
   prodInp.addEventListener("keydown", e => {
     if (e.key === "Escape") { box.classList.remove("open"); return; }
-    if (e.key === "Enter") { if (box.classList.contains("open")) box.classList.remove("open"); else saveAll(); }
+    if (e.key === "Enter") { if (box.classList.contains("open")) box.classList.remove("open"); else save(); }
   });
-  row.querySelector(".qty-inp").addEventListener("keydown", e => { if (e.key === "Enter") saveAll(); });
+  row.querySelector(".qty-inp").addEventListener("keydown", e => { if (e.key === "Enter") save(); });
   row.querySelector(".ir-del").addEventListener("click", () => {
     const total = app.querySelectorAll("#itemRows .item-row").length;
     if (total <= 1) {
@@ -486,7 +480,7 @@ function addItemRow(vals) {
 
 function updateRemoveButtons() {
   const rowsEls = app.querySelectorAll("#itemRows .item-row");
-  const mostrar = rowsEls.length > 1 && editId === null;
+  const mostrar = rowsEls.length > 1 && editId === null && saidaEditId === null;
   rowsEls.forEach(r => { const d = r.querySelector(".ir-del"); if (d) d.style.display = mostrar ? "" : "none"; });
 }
 
@@ -583,28 +577,54 @@ function confirmDialog(opts) {
 // SAÍDAS (CRUD)
 // =====================================================
 function salvarSaida() {
-  const nome = app.querySelector("#s-nome").value.trim();
-  const qtd = Math.max(1, parseInt(app.querySelector("#s-qtd").value, 10) || 1);
-  const unidade = app.querySelector("#s-unidade").value;
   const familia = app.querySelector("#s-familia").value.trim();
   const obs = app.querySelector("#s-obs").value.trim();
   const data = app.querySelector("#s-data").value;
 
-  if (!nome) { mostrarMsg("Informe o nome do produto.", true, "#sMsgHolder"); app.querySelector("#s-nome").focus(); return; }
-
+  // edição: uma linha atualiza a saída existente
   if (saidaEditId !== null) {
+    const row = app.querySelector("#itemRows .item-row");
+    const nome = row.querySelector(".prod-inp").value.trim();
+    const qtd = Math.max(1, parseInt(row.querySelector(".qty-inp").value, 10) || 1);
+    const unidade = row.querySelector(".unit-inp").value;
+    if (!nome) { mostrarMsg("Informe o nome do produto.", true, "#sMsgHolder"); row.querySelector(".prod-inp").focus(); return; }
     const s = DB.saidas.find(x => x.id === saidaEditId);
     if (s) Object.assign(s, { nome, qtd, unidade, familia, obs, data });
     saveDB();
     saidaEditId = null;
     home();
     mostrarMsg("Saída atualizada com sucesso! ✅", false, "#sMsgHolder");
-  } else {
-    DB.saidas.push({ id: uid(), nome, qtd, unidade, familia, obs, data, por: currentUser ? currentUser.id : "", ts: Date.now() });
-    saveDB();
-    home();
-    mostrarMsg("Saída registrada com sucesso! 🎉", false, "#sMsgHolder");
+    return;
   }
+
+  // registro: cada linha com produto vira uma saída (compartilham família/obs/data)
+  const itens = [];
+  app.querySelectorAll("#itemRows .item-row").forEach(row => {
+    const nome = row.querySelector(".prod-inp").value.trim();
+    if (!nome) return;
+    const qtd = Math.max(1, parseInt(row.querySelector(".qty-inp").value, 10) || 1);
+    const unidade = row.querySelector(".unit-inp").value;
+    itens.push({ nome, qtd, unidade });
+  });
+
+  if (!itens.length) {
+    mostrarMsg("Informe pelo menos um produto.", true, "#sMsgHolder");
+    const fi = app.querySelector(".prod-inp"); if (fi) fi.focus();
+    return;
+  }
+
+  const agora = Date.now();
+  itens.forEach((it, i) => {
+    DB.saidas.push({
+      id: uid(), nome: it.nome, qtd: it.qtd, unidade: it.unidade, familia, obs, data,
+      por: currentUser ? currentUser.id : "", ts: agora + i
+    });
+  });
+  saveDB();
+  home();
+  mostrarMsg(itens.length === 1
+    ? "Saída registrada com sucesso! 🎉"
+    : `${itens.length} saídas registradas com sucesso! 🎉`, false, "#sMsgHolder");
 }
 
 function renderSaidaList() {
