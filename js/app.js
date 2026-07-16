@@ -578,6 +578,7 @@ function salvarSaida() {
     if (!nome) { mostrarMsg("Informe o nome do produto.", true, "#sMsgHolder"); row.querySelector(".prod-inp").focus(); return; }
     const s = DB.saidas.find(x => x.id === saidaEditId);
     if (s) Object.assign(s, { nome, qtd, unidade, familia, obs, data });
+    garantirFamilia(familia);
     saveDB();
     saidaEditId = null;
     home();
@@ -608,6 +609,7 @@ function salvarSaida() {
       por: currentUser ? currentUser.id : "", ts: agora + i
     });
   });
+  garantirFamilia(familia);
   saveDB();
   home();
   mostrarMsg(itens.length === 1
@@ -669,6 +671,16 @@ function removerSaida(id) {
 // =====================================================
 // FAMÍLIAS (CRUD)
 // =====================================================
+// cadastra a família automaticamente se ainda não existir (usado nas saídas)
+function garantirFamilia(nome) {
+  const n = (nome || "").trim();
+  if (!n) return;
+  const existe = DB.familias.some(f => (f.nome || "").trim().toLowerCase() === n.toLowerCase());
+  if (!existe) {
+    DB.familias.push({ id: uid(), nome: n, endereco: "", por: currentUser ? currentUser.id : "", ts: Date.now() });
+  }
+}
+
 function salvarFamilia() {
   const nome = app.querySelector("#fm-nome").value.trim();
   const endereco = app.querySelector("#fm-end").value.trim();
