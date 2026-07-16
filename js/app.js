@@ -448,7 +448,7 @@ function addItemRow(vals, onEnter) {
   row.className = "item-row";
   row.innerHTML = `
     <div class="ir-name">
-      <input class="type-input prod-inp" style="text-align:left" placeholder="Produto (ex: Arroz 5kg)" value="${esc(v.nome)}" autocomplete="off">
+      <input class="type-input prod-inp" style="text-align:left" placeholder="Produto (ex: Arroz)" value="${esc(v.nome)}" autocomplete="off">
       <div class="suggest prod-sug"></div>
     </div>
     <div class="ir-sub">
