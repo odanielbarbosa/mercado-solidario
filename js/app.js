@@ -310,7 +310,7 @@ function renderFamilias() {
   const host = app.querySelector("#viewContent");
   const editando = familiaEditId !== null;
   const f = editando ? DB.familias.find(x => x.id === familiaEditId) : null;
-  const v = f || { nome: "", telefone: "", pessoas: "", endereco: "", obs: "" };
+  const v = f || { nome: "", endereco: "" };
 
   host.innerHTML = `
   <div class="card form-card">
@@ -321,21 +321,9 @@ function renderFamilias() {
         <label for="fm-nome">Nome da família / responsável</label>
         <input id="fm-nome" class="type-input" style="text-align:left" placeholder="Ex: Família Silva" value="${esc(v.nome)}">
       </div>
-      <div class="field">
-        <label for="fm-tel">Telefone (opcional)</label>
-        <input id="fm-tel" class="type-input" style="text-align:left" type="tel" inputmode="tel" placeholder="(00) 00000-0000" value="${esc(v.telefone)}">
-      </div>
-      <div class="field">
-        <label for="fm-pessoas">Nº de pessoas (opcional)</label>
-        <input id="fm-pessoas" class="type-input" type="number" min="1" step="1" placeholder="Ex: 4" value="${esc(v.pessoas)}">
-      </div>
       <div class="field full">
         <label for="fm-end">Endereço (opcional)</label>
         <input id="fm-end" class="type-input" style="text-align:left" placeholder="Rua, nº, bairro" value="${esc(v.endereco)}">
-      </div>
-      <div class="field full">
-        <label for="fm-obs">Observação (opcional)</label>
-        <textarea id="fm-obs" class="type-input" rows="2" placeholder="Ex: recebe cesta mensal">${esc(v.obs)}</textarea>
       </div>
     </div>
     <div class="form-actions">
@@ -347,7 +335,7 @@ function renderFamilias() {
 
   <div class="section-h">Famílias cadastradas</div>
   <div class="toolbar">
-    <input id="fmSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar por nome, telefone ou endereço…">
+    <input id="fmSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar por nome ou endereço…">
   </div>
   <div id="familiaList"></div>`;
 
@@ -683,23 +671,19 @@ function removerSaida(id) {
 // =====================================================
 function salvarFamilia() {
   const nome = app.querySelector("#fm-nome").value.trim();
-  const telefone = app.querySelector("#fm-tel").value.trim();
-  const np = parseInt(app.querySelector("#fm-pessoas").value, 10);
-  const pessoas = np > 0 ? np : "";
   const endereco = app.querySelector("#fm-end").value.trim();
-  const obs = app.querySelector("#fm-obs").value.trim();
 
   if (!nome) { mostrarMsg("Informe o nome da família.", true, "#fmMsgHolder"); app.querySelector("#fm-nome").focus(); return; }
 
   if (familiaEditId !== null) {
     const f = DB.familias.find(x => x.id === familiaEditId);
-    if (f) Object.assign(f, { nome, telefone, pessoas, endereco, obs });
+    if (f) Object.assign(f, { nome, endereco });
     saveDB();
     familiaEditId = null;
     home();
     mostrarMsg("Família atualizada com sucesso! ✅", false, "#fmMsgHolder");
   } else {
-    DB.familias.push({ id: uid(), nome, telefone, pessoas, endereco, obs, por: currentUser ? currentUser.id : "", ts: Date.now() });
+    DB.familias.push({ id: uid(), nome, endereco, por: currentUser ? currentUser.id : "", ts: Date.now() });
     saveDB();
     home();
     mostrarMsg("Família cadastrada com sucesso! 🎉", false, "#fmMsgHolder");
@@ -713,7 +697,6 @@ function renderFamiliaList() {
   let itens = DB.familias.slice().reverse();
   if (busca) itens = itens.filter(f =>
     (f.nome || "").toLowerCase().includes(busca) ||
-    (f.telefone || "").toLowerCase().includes(busca) ||
     (f.endereco || "").toLowerCase().includes(busca));
 
   if (!itens.length) {
@@ -723,26 +706,18 @@ function renderFamiliaList() {
     return;
   }
 
-  wrap.innerHTML = itens.map(f => {
-    const linha = [];
-    if (f.pessoas) linha.push("👥 " + esc(f.pessoas) + " pessoa" + (Number(f.pessoas) === 1 ? "" : "s"));
-    if (f.telefone) linha.push("📞 " + esc(f.telefone));
-    if (!linha.length) linha.push("cadastrada em " + dmy(f.ts || Date.now()));
-    return `
+  wrap.innerHTML = itens.map(f => `
     <div class="prod">
       <div class="picon">👪</div>
       <div class="prod-info">
         <h3>${esc(f.nome)}</h3>
-        <p>${linha.join(" · ")}</p>
-        ${f.endereco ? `<p class="prod-obs">📍 ${esc(f.endereco)}</p>` : ""}
-        ${f.obs ? `<p class="prod-obs">📝 ${esc(f.obs)}</p>` : ""}
+        <p>${f.endereco ? "📍 " + esc(f.endereco) : "cadastrada em " + dmy(f.ts || Date.now())}</p>
       </div>
       <div class="row-actions">
         <button class="icon-btn" title="Editar" data-fedit="${f.id}">✏️</button>
         <button class="icon-btn del" title="Remover" data-fdel="${f.id}">🗑️</button>
       </div>
-    </div>`;
-  }).join("");
+    </div>`).join("");
 
   wrap.querySelectorAll("[data-fedit]").forEach(b => b.onclick = () => { familiaEditId = b.dataset.fedit; home(); });
   wrap.querySelectorAll("[data-fdel]").forEach(b => b.onclick = () => removerFamilia(b.dataset.fdel));
