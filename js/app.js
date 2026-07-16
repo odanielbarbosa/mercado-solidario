@@ -11,7 +11,8 @@ let currentUser = null;
 let editId = null;         // id da entrada (doação) em edição
 let saidaEditId = null;    // id da saída em edição
 let familiaEditId = null;  // id da família em edição
-let view = "entradas";     // aba atual: "entradas" | "saidas" | "familias"
+let catEditId = null;      // id do produto (catálogo) em edição
+let view = "entradas";     // aba atual: "entradas" | "saidas" | "familias" | "produtos"
 
 const UNIDADES = ["Gramas", "Quilos", "Caixas", "Pacotes", "Unidade"];
 const AVATAR_CORES = ["#1cb0f6", "#58cc02", "#ce82ff", "#ff9600", "#ffc800", "#ff4b4b", "#2ec4b6"];
@@ -27,7 +28,8 @@ function normalizeDB(raw) {
     v: DB_VERSION,
     produtos: Array.isArray(d.produtos) ? d.produtos : [],
     saidas: Array.isArray(d.saidas) ? d.saidas : [],
-    familias: Array.isArray(d.familias) ? d.familias : []
+    familias: Array.isArray(d.familias) ? d.familias : [],
+    catalogo: Array.isArray(d.catalogo) ? d.catalogo : []
   };
 }
 let DB = normalizeDB(null);
@@ -116,6 +118,7 @@ function login(user) {
   currentUser = user;
   localStorage.setItem(USER_KEY, user.id);
   DB = loadDB();
+  migrarCatalogo();
   editId = null;
   home();
 }
@@ -174,7 +177,8 @@ function home() {
   <div class="user-bar">
     <div class="avatar sm" style="background:${currentUser.color}">${currentUser.avatar}</div>
     <div class="uwrap"><div class="uhi">Olá, ${esc(currentUser.name)}! 👋</div></div>
-    <button class="nav-btn" id="logoutBtn">↩︎ Trocar usuário</button>
+    <button class="nav-btn${view === "produtos" ? " on" : ""}" id="prodBtn">📋 Produtos</button>
+    <button class="nav-btn" id="logoutBtn">↩︎ Sair</button>
   </div>
 
   <div class="tabs">
@@ -188,13 +192,18 @@ function home() {
   app.querySelector("#themeBtn").addEventListener("click", toggleTheme);
   app.querySelector("#cfgBtn").addEventListener("click", openSettings);
   app.querySelector("#logoutBtn").addEventListener("click", logout);
+  app.querySelector("#prodBtn").addEventListener("click", () => {
+    if (view === "produtos") return;
+    view = "produtos"; editId = null; saidaEditId = null; familiaEditId = null; catEditId = null; home();
+  });
   app.querySelectorAll(".tabs .tab").forEach(t => t.addEventListener("click", () => {
     if (view === t.dataset.view) return;
-    view = t.dataset.view; editId = null; saidaEditId = null; familiaEditId = null; home();
+    view = t.dataset.view; editId = null; saidaEditId = null; familiaEditId = null; catEditId = null; home();
   }));
 
   if (view === "saidas") renderSaidas();
   else if (view === "familias") renderFamilias();
+  else if (view === "produtos") renderProdutos();
   else renderEntradas();
   window.scrollTo(0, 0);
 }
@@ -348,6 +357,46 @@ function renderFamilias() {
   if (editando) app.querySelector("#fm-nome").focus();
 }
 
+// ---------- PRODUTOS (catálogo) ----------
+function renderProdutos() {
+  const host = app.querySelector("#viewContent");
+  const editando = catEditId !== null;
+  const p = editando ? DB.catalogo.find(x => x.id === catEditId) : null;
+  const v = p || { nome: "" };
+
+  host.innerHTML = `
+  <div class="card form-card">
+    <h2>${editando ? "✏️ Editar produto" : "📋 Cadastrar produto"}</h2>
+    <div class="fsub">${editando ? "Atualize o nome do produto." : "Cadastre os produtos usados nas entradas e saídas."}</div>
+    <div class="form-grid">
+      <div class="field full">
+        <label for="cad-nome">Produto</label>
+        <input id="cad-nome" class="type-input" style="text-align:left" placeholder="Ex: Arroz" value="${esc(v.nome)}">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" id="cadSaveBtn">${editando ? "Salvar alterações" : "Cadastrar produto"}</button>
+      ${editando ? `<button class="btn ghost" id="cadCancelBtn">Cancelar</button>` : ""}
+    </div>
+    <div id="cadMsgHolder"></div>
+  </div>
+
+  <div class="section-h">Produtos cadastrados</div>
+  <div class="toolbar">
+    <input id="cadSearch" class="type-input" style="text-align:left" placeholder="🔎 Buscar produto…">
+  </div>
+  <div id="catList"></div>`;
+
+  app.querySelector("#cadSaveBtn").addEventListener("click", salvarProdutoCat);
+  const c = app.querySelector("#cadCancelBtn");
+  if (c) c.addEventListener("click", () => { catEditId = null; home(); });
+  app.querySelector("#cadSearch").addEventListener("input", renderCatList);
+  app.querySelector("#cad-nome").addEventListener("keydown", e => { if (e.key === "Enter") salvarProdutoCat(); });
+
+  renderCatList();
+  if (editando) app.querySelector("#cad-nome").focus();
+}
+
 function renderList() {
   const wrap = app.querySelector("#list");
   if (!wrap) return;
@@ -382,14 +431,30 @@ function renderList() {
 
 // ---------- autocomplete do campo Produto ----------
 // lista os produtos já cadastrados (distinct, mais recentes primeiro)
+// nomes dos produtos cadastrados (catálogo) — base do autocomplete
 function distinctNomes() {
-  const seen = new Set(), out = [];
-  for (let i = DB.produtos.length - 1; i >= 0; i--) {
-    const nome = (DB.produtos[i].nome || "").trim();
-    const key = nome.toLowerCase();
-    if (nome && !seen.has(key)) { seen.add(key); out.push(nome); }
-  }
-  return out;
+  return DB.catalogo.slice().reverse().map(p => (p.nome || "").trim()).filter(Boolean);
+}
+
+// cadastra o produto no catálogo se ainda não existir
+function garantirProdutoCat(nome) {
+  const n = (nome || "").trim();
+  if (!n) return;
+  const existe = DB.catalogo.some(p => (p.nome || "").trim().toLowerCase() === n.toLowerCase());
+  if (!existe) DB.catalogo.push({ id: uid(), nome: n, por: currentUser ? currentUser.id : "", ts: Date.now() });
+}
+
+// primeira carga: popula o catálogo com produtos já usados em entradas/saídas
+function migrarCatalogo() {
+  if (DB.catalogo.length) return;
+  const seen = new Set(), add = [];
+  const push = nome => { const n = (nome || "").trim(), k = n.toLowerCase(); if (n && !seen.has(k)) { seen.add(k); add.push(n); } };
+  DB.produtos.forEach(p => push(p.nome));
+  DB.saidas.forEach(s => push(s.nome));
+  if (!add.length) return;
+  let t = Date.now();
+  add.forEach(n => DB.catalogo.push({ id: uid(), nome: n, por: currentUser ? currentUser.id : "", ts: t++ }));
+  saveDB();
 }
 
 // nomes distintos das famílias cadastradas (mais recentes primeiro)
@@ -487,6 +552,7 @@ function saveAll() {
     if (!nome) { mostrarMsg("Informe o nome do produto.", true); row.querySelector(".prod-inp").focus(); return; }
     const p = DB.produtos.find(x => x.id === editId);
     if (p) Object.assign(p, { nome, qtd, unidade, data });
+    garantirProdutoCat(nome);
     saveDB();
     editId = null;
     home();
@@ -517,6 +583,7 @@ function saveAll() {
       por: currentUser ? currentUser.id : "", ts: agora + i
     });
   });
+  itens.forEach(it => garantirProdutoCat(it.nome));
   saveDB();
   home();
   mostrarMsg(itens.length === 1
@@ -578,6 +645,7 @@ function salvarSaida() {
     if (!nome) { mostrarMsg("Informe o nome do produto.", true, "#sMsgHolder"); row.querySelector(".prod-inp").focus(); return; }
     const s = DB.saidas.find(x => x.id === saidaEditId);
     if (s) Object.assign(s, { nome, qtd, unidade, familia, obs, data });
+    garantirProdutoCat(nome);
     garantirFamilia(familia);
     saveDB();
     saidaEditId = null;
@@ -609,6 +677,7 @@ function salvarSaida() {
       por: currentUser ? currentUser.id : "", ts: agora + i
     });
   });
+  itens.forEach(it => garantirProdutoCat(it.nome));
   garantirFamilia(familia);
   saveDB();
   home();
@@ -747,6 +816,78 @@ function removerFamilia(id) {
       if (familiaEditId === id) familiaEditId = null;
       home();
       mostrarMsg("Família removida.", false, "#fmMsgHolder");
+    }
+  });
+}
+
+// =====================================================
+// PRODUTOS / CATÁLOGO (CRUD)
+// =====================================================
+function salvarProdutoCat() {
+  const nome = app.querySelector("#cad-nome").value.trim();
+  if (!nome) { mostrarMsg("Informe o nome do produto.", true, "#cadMsgHolder"); app.querySelector("#cad-nome").focus(); return; }
+
+  if (catEditId !== null) {
+    if (DB.catalogo.some(x => x.id !== catEditId && (x.nome || "").trim().toLowerCase() === nome.toLowerCase())) {
+      mostrarMsg("Já existe um produto com esse nome.", true, "#cadMsgHolder"); return;
+    }
+    const p = DB.catalogo.find(x => x.id === catEditId);
+    if (p) p.nome = nome;
+    saveDB();
+    catEditId = null;
+    home();
+    mostrarMsg("Produto atualizado com sucesso! ✅", false, "#cadMsgHolder");
+  } else {
+    if (DB.catalogo.some(x => (x.nome || "").trim().toLowerCase() === nome.toLowerCase())) {
+      mostrarMsg("Esse produto já está cadastrado.", true, "#cadMsgHolder"); app.querySelector("#cad-nome").select(); return;
+    }
+    DB.catalogo.push({ id: uid(), nome, por: currentUser ? currentUser.id : "", ts: Date.now() });
+    saveDB();
+    home();
+    mostrarMsg("Produto cadastrado com sucesso! 🎉", false, "#cadMsgHolder");
+  }
+}
+
+function renderCatList() {
+  const wrap = app.querySelector("#catList");
+  if (!wrap) return;
+  const busca = (app.querySelector("#cadSearch").value || "").trim().toLowerCase();
+  let itens = DB.catalogo.slice().reverse();
+  if (busca) itens = itens.filter(p => (p.nome || "").toLowerCase().includes(busca));
+
+  if (!itens.length) {
+    wrap.innerHTML = DB.catalogo.length
+      ? `<div class="empty-note"><div class="big">🔎</div>Nenhum produto encontrado.</div>`
+      : `<div class="empty-note"><div class="big">📋</div>Nenhum produto cadastrado ainda.<br>Cadastre o primeiro no formulário acima!</div>`;
+    return;
+  }
+
+  wrap.innerHTML = itens.map(p => `
+    <div class="prod">
+      <div class="picon">📦</div>
+      <div class="prod-info"><h3>${esc(p.nome)}</h3></div>
+      <div class="row-actions">
+        <button class="icon-btn" title="Editar" data-cedit="${p.id}">✏️</button>
+        <button class="icon-btn del" title="Remover" data-cdel="${p.id}">🗑️</button>
+      </div>
+    </div>`).join("");
+
+  wrap.querySelectorAll("[data-cedit]").forEach(b => b.onclick = () => { catEditId = b.dataset.cedit; home(); });
+  wrap.querySelectorAll("[data-cdel]").forEach(b => b.onclick = () => removerProdutoCat(b.dataset.cdel));
+}
+
+function removerProdutoCat(id) {
+  const p = DB.catalogo.find(x => x.id === id);
+  if (!p) return;
+  confirmDialog({
+    title: "🗑️ Remover produto",
+    message: `Remover <b>${esc(p.nome)}</b> do cadastro de produtos?<br>Isso não afeta as entradas/saídas já registradas.`,
+    onOk: () => {
+      DB.catalogo = DB.catalogo.filter(x => x.id !== id);
+      saveDB();
+      if (catEditId === id) catEditId = null;
+      home();
+      mostrarMsg("Produto removido.", false, "#cadMsgHolder");
     }
   });
 }

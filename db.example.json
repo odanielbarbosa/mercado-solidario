@@ -11,5 +11,10 @@
   ],
   "familias": [
     { "id": "fm1", "nome": "Família Silva", "obs": "Recebe cesta mensal", "por": "daniel_ms", "ts": 1783705280000 }
+  ],
+  "catalogo": [
+    { "id": "c1", "nome": "Arroz 5kg", "por": "daniel_ms", "ts": 1783705280000 },
+    { "id": "c2", "nome": "Camiseta infantil", "por": "marcelo_ms", "ts": 1783705290000 },
+    { "id": "c3", "nome": "Sabonete", "por": "jonathan_ms", "ts": 1783705300000 }
   ]
 }

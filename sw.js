@@ -1,6 +1,6 @@
 // Service worker do Mercado Solidário — deixa o app instalável e 100% offline.
 // Estratégia: network-first (mantém atualizado quando online) com fallback ao cache.
-const CACHE = "mercado-solidario-v16";
+const CACHE = "mercado-solidario-v17";
 const ASSETS = [
   "./",
   "index.html",
