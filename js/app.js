@@ -229,8 +229,8 @@ function renderEntradas() {
     <div id="itemRows"></div>
     ${editando ? "" : `<button class="add-row-btn" id="addRowBtn">＋ Adicionar outro produto</button>`}
     <div class="field full" style="margin-top:14px">
-      <label for="f-data">Data da doação</label>
-      <input id="f-data" class="type-input" style="text-align:left" type="date" value="${esc(v.data)}">
+      <label>Data da doação</label>
+      <div class="date-slot"></div>
     </div>
     <div class="form-actions">
       <button class="btn" id="saveBtn">${editando ? "Salvar alterações" : "Adicionar doações"}</button>
@@ -254,9 +254,7 @@ function renderEntradas() {
     const r = addItemRow(); updateRemoveButtons();
     const inp = r && r.querySelector(".prod-inp"); if (inp) inp.focus();
   });
-  const fData = app.querySelector("#f-data");
-  fData.addEventListener("keydown", e => { if (e.key === "Enter") saveAll(); });
-  fData.addEventListener("click", () => { try { fData.showPicker(); } catch (e) {} });
+  app.querySelector(".date-slot").replaceWith(createDatePicker("f-data", v.data));
 
   addItemRow(editando ? v : null);
   updateRemoveButtons();
@@ -288,8 +286,8 @@ function renderSaidas() {
         <textarea id="s-obs" class="type-input" rows="2" placeholder="Ex: entregue à família X">${esc(v.obs)}</textarea>
       </div>
       <div class="field full">
-        <label for="s-data">Data da saída</label>
-        <input id="s-data" class="type-input" style="text-align:left" type="date" value="${esc(v.data)}">
+        <label>Data da saída</label>
+        <div class="date-slot"></div>
       </div>
     </div>
     <div class="form-actions">
@@ -310,9 +308,7 @@ function renderSaidas() {
   const c = app.querySelector("#sCancelBtn");
   if (c) c.addEventListener("click", () => { saidaEditId = null; home(); });
   app.querySelector("#sSearch").addEventListener("input", renderSaidaList);
-  const sData = app.querySelector("#s-data");
-  sData.addEventListener("keydown", e => { if (e.key === "Enter") salvarSaida(); });
-  sData.addEventListener("click", () => { try { sData.showPicker(); } catch (e) {} });
+  app.querySelector(".date-slot").replaceWith(createDatePicker("s-data", v.data));
   const addRowBtn = app.querySelector("#addRowBtn");
   if (addRowBtn) addRowBtn.addEventListener("click", () => {
     const r = addItemRow(null, salvarSaida); updateRemoveButtons();
@@ -509,7 +505,6 @@ function addItemRow(vals, onEnter) {
   if (!rows) return null;
   const save = onEnter || saveAll;
   const v = vals || { nome: "", qtd: 1, unidade: "g" };
-  const uniOpts = UNIDADES.map(u => `<option value="${u.v}">${u.l}</option>`).join("");
   const row = document.createElement("div");
   row.className = "item-row";
   row.innerHTML = `
@@ -523,11 +518,11 @@ function addItemRow(vals, onEnter) {
         <input class="qty-inp" type="number" min="1" step="1" inputmode="numeric" value="${esc(v.qtd)}" title="Quantidade">
         <button type="button" class="qstep" data-dir="1" tabindex="-1" title="Aumentar">+</button>
       </div>
-      <select class="type-input unit-inp" title="Unidade">${uniOpts}</select>
+      <div class="unit-slot"></div>
       <button class="ir-del" title="Remover produto">✕</button>
     </div>`;
   rows.appendChild(row);
-  row.querySelector(".unit-inp").value = v.unidade;
+  row.querySelector(".unit-slot").replaceWith(createSelect(UNIDADES, v.unidade));
 
   const prodInp = row.querySelector(".prod-inp");
   const box = row.querySelector(".prod-sug");
@@ -544,7 +539,7 @@ function addItemRow(vals, onEnter) {
   row.querySelector(".ir-del").addEventListener("click", () => {
     const total = app.querySelectorAll("#itemRows .item-row").length;
     if (total <= 1) {
-      prodInp.value = ""; row.querySelector(".qty-inp").value = "1"; row.querySelector(".unit-inp").value = "g"; prodInp.focus();
+      prodInp.value = ""; row.querySelector(".qty-inp").value = "1"; const ms = row.querySelector(".msel"); if (ms) ms._set("g"); prodInp.focus();
     } else {
       row.remove(); updateRemoveButtons();
     }
@@ -556,6 +551,99 @@ function updateRemoveButtons() {
   const rowsEls = app.querySelectorAll("#itemRows .item-row");
   const mostrar = rowsEls.length > 1 && editId === null && saidaEditId === null;
   rowsEls.forEach(r => { const d = r.querySelector(".ir-del"); if (d) d.style.display = mostrar ? "" : "none"; });
+}
+
+// =====================================================
+// COMPONENTES CUSTOMIZADOS (dropdown + calendário)
+// =====================================================
+function closeAllPopups() {
+  document.querySelectorAll(".msel.open, .mdate.open").forEach(el => el.classList.remove("open"));
+}
+
+// dropdown customizado; mantém um input escondido .unit-inp com o valor
+function createSelect(options, value) {
+  const wrap = document.createElement("div");
+  wrap.className = "msel";
+  const cur = options.find(o => o.v === value) || options[0];
+  wrap.innerHTML = `
+    <input type="hidden" class="unit-inp" value="${esc(cur.v)}">
+    <button type="button" class="msel-btn"><span class="msel-lab">${esc(cur.l)}</span><span class="msel-caret">▾</span></button>
+    <div class="msel-pop">${options.map(o => `<button type="button" class="msel-opt${o.v === cur.v ? " sel" : ""}" data-v="${esc(o.v)}">${esc(o.l)}</button>`).join("")}</div>`;
+  const hidden = wrap.querySelector(".unit-inp");
+  const lab = wrap.querySelector(".msel-lab");
+  const btn = wrap.querySelector(".msel-btn");
+  const pop = wrap.querySelector(".msel-pop");
+  const setSel = v => {
+    const o = options.find(x => x.v === v) || options[0];
+    hidden.value = o.v; lab.textContent = o.l;
+    pop.querySelectorAll(".msel-opt").forEach(x => x.classList.toggle("sel", x.dataset.v === o.v));
+  };
+  wrap._set = setSel;
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    const wasOpen = wrap.classList.contains("open");
+    closeAllPopups();
+    if (!wasOpen) wrap.classList.add("open");
+  });
+  pop.querySelectorAll(".msel-opt").forEach(o => o.addEventListener("click", e => {
+    e.stopPropagation(); setSel(o.dataset.v); wrap.classList.remove("open");
+  }));
+  return wrap;
+}
+
+// calendário customizado; mantém um input escondido #id com a data (ISO)
+function createDatePicker(id, iso) {
+  const wrap = document.createElement("div");
+  wrap.className = "mdate";
+  wrap.innerHTML = `
+    <input type="hidden" id="${id}" value="${esc(iso || "")}">
+    <button type="button" class="mdate-btn"><span class="mdate-val"></span><span class="mdate-ic">📅</span></button>
+    <div class="mdate-pop"></div>`;
+  const hidden = wrap.querySelector("input");
+  const btn = wrap.querySelector(".mdate-btn");
+  const valEl = wrap.querySelector(".mdate-val");
+  const pop = wrap.querySelector(".mdate-pop");
+  let vy, vm;
+  const MES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const setVal = s => { hidden.value = s || ""; valEl.textContent = s ? dataBR(s) : "Selecionar data"; };
+  const parse = () => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(hidden.value || ""); return m ? { a: +m[1], m: +m[2] - 1, d: +m[3] } : null; };
+  const draw = () => {
+    const start = new Date(vy, vm, 1).getDay();
+    const dim = new Date(vy, vm + 1, 0).getDate();
+    const sel = parse();
+    const wd = ["D", "S", "T", "Q", "Q", "S", "S"].map(w => `<div class="cal-wd">${w}</div>`).join("");
+    let cells = "";
+    for (let i = 0; i < start; i++) cells += `<div class="cal-cell empty"></div>`;
+    for (let d = 1; d <= dim; d++) {
+      const s = sel && sel.a === vy && sel.m === vm && sel.d === d;
+      cells += `<button type="button" class="cal-cell${s ? " sel" : ""}" data-d="${d}">${d}</button>`;
+    }
+    pop.innerHTML = `
+      <div class="cal-head">
+        <button type="button" class="cal-nav" data-nav="-1">‹</button>
+        <div class="cal-title">${MES[vm]} ${vy}</div>
+        <button type="button" class="cal-nav" data-nav="1">›</button>
+      </div>
+      <div class="cal-grid">${wd}${cells}</div>`;
+    pop.querySelector('[data-nav="-1"]').onclick = e => { e.stopPropagation(); vm--; if (vm < 0) { vm = 11; vy--; } draw(); };
+    pop.querySelector('[data-nav="1"]').onclick = e => { e.stopPropagation(); vm++; if (vm > 11) { vm = 0; vy++; } draw(); };
+    pop.querySelectorAll("[data-d]").forEach(c => c.onclick = e => {
+      e.stopPropagation();
+      setVal(vy + "-" + String(vm + 1).padStart(2, "0") + "-" + String(+c.dataset.d).padStart(2, "0"));
+      wrap.classList.remove("open");
+    });
+  };
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    const wasOpen = wrap.classList.contains("open");
+    closeAllPopups();
+    if (wasOpen) return;
+    const p = parse(), now = new Date();
+    vy = p ? p.a : now.getFullYear(); vm = p ? p.m : now.getMonth();
+    draw(); wrap.classList.add("open");
+  });
+  setVal(iso);
+  return wrap;
 }
 
 // =====================================================
@@ -1088,6 +1176,9 @@ function buildRecent(prods) {
 // =====================================================
 // BOOT
 // =====================================================
+document.addEventListener("click", closeAllPopups);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllPopups(); });
+
 (function boot() {
   const saved = localStorage.getItem(USER_KEY);
   const u = saved ? findUser(saved) : null;

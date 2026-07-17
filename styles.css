@@ -247,6 +247,67 @@ input[type=date].type-input { cursor: pointer; }
 input[type=date].type-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .65; }
 input[type=date].type-input:hover::-webkit-calendar-picker-indicator { opacity: 1; }
 html[data-theme="dark"] input[type=date].type-input::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.7); }
+
+/* ---------- dropdown customizado (unidade) ---------- */
+.msel { position: relative; flex: 1; min-width: 0; }
+.msel-btn {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  background: var(--card); border: 2px solid var(--line); border-radius: 12px;
+  padding: 12px; font-size: 15px; font-weight: 600; color: var(--ink); cursor: pointer;
+  text-align: left; touch-action: manipulation;
+}
+.msel.open .msel-btn { border-color: var(--blue); }
+.msel-lab { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msel-caret { color: var(--ink-soft); font-size: 12px; flex: 0 0 auto; }
+.msel-pop {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 45;
+  background: var(--card); border: 2px solid var(--line); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2); overflow: hidden; display: none;
+}
+.msel.open .msel-pop { display: block; }
+.msel-opt {
+  display: block; width: 100%; text-align: left; border: none; background: none;
+  padding: 12px 14px; font-size: 15px; font-weight: 600; color: var(--ink);
+  cursor: pointer; border-bottom: 1px solid var(--line); touch-action: manipulation;
+}
+.msel-opt:last-child { border-bottom: none; }
+.msel-opt:hover { background: var(--card-hover); }
+.msel-opt.sel { background: var(--sel-bg); color: var(--sel-ink); font-weight: 800; }
+
+/* ---------- calendário customizado (data) ---------- */
+.mdate { position: relative; }
+.mdate-btn {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--card); border: 2px solid var(--line); border-radius: 14px;
+  padding: 13px 14px; font-size: 16px; font-weight: 600; color: var(--ink); cursor: pointer;
+  text-align: left; touch-action: manipulation;
+}
+.mdate.open .mdate-btn { border-color: var(--blue); }
+.mdate-ic { flex: 0 0 auto; font-size: 18px; }
+.mdate-pop {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 45; width: 300px; max-width: 92vw;
+  background: var(--card); border: 2px solid var(--line); border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25); padding: 12px; display: none;
+}
+.mdate.open .mdate-pop { display: block; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-title { font-weight: 800; font-size: 14px; }
+.cal-nav {
+  width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line);
+  background: var(--card); color: var(--blue); font-size: 18px; font-weight: 800;
+  cursor: pointer; line-height: 1; touch-action: manipulation;
+}
+.cal-nav:active { transform: translateY(1px); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-wd { text-align: center; font-size: 11px; font-weight: 800; color: var(--ink-soft); padding: 4px 0; }
+.cal-cell {
+  aspect-ratio: 1 / 1; border: none; background: none; border-radius: 9px; cursor: pointer;
+  font-size: 14px; font-weight: 600; color: var(--ink);
+  display: flex; align-items: center; justify-content: center; touch-action: manipulation;
+}
+.cal-cell.empty { pointer-events: none; }
+.cal-cell:hover:not(.empty) { background: var(--card-hover); }
+.cal-cell.sel { background: var(--green); color: #fff; font-weight: 800; }
 .item-row .ir-del {
   flex: 0 0 auto; width: 46px; border: 2px solid var(--line); background: var(--card);
   border-radius: 12px; color: var(--red); font-size: 16px; font-weight: 700; cursor: pointer;
