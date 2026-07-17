@@ -14,7 +14,13 @@ let familiaEditId = null;  // id da família em edição
 let catEditId = null;      // id do produto (catálogo) em edição
 let view = "entradas";     // aba atual: "entradas" | "saidas" | "familias" | "produtos"
 
-const UNIDADES = ["g", "kg", "cx", "pct", "un"];
+const UNIDADES = [
+  { v: "g",   l: "g (gramas)" },
+  { v: "kg",  l: "kg (quilos)" },
+  { v: "cx",  l: "cx (caixas)" },
+  { v: "pct", l: "pct (pacotes)" },
+  { v: "un",  l: "un (unidade)" }
+];
 const AVATAR_CORES = ["#1cb0f6", "#58cc02", "#ce82ff", "#ff9600", "#ffc800", "#ff4b4b", "#2ec4b6"];
 
 // =====================================================
@@ -511,7 +517,7 @@ function addItemRow(vals, onEnter) {
   if (!rows) return null;
   const save = onEnter || saveAll;
   const v = vals || { nome: "", qtd: 1, unidade: "g" };
-  const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
+  const uniOpts = UNIDADES.map(u => `<option value="${u.v}">${u.l}</option>`).join("");
   const row = document.createElement("div");
   row.className = "item-row";
   row.innerHTML = `
