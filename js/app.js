@@ -74,6 +74,7 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 function uid() { return Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+function normTxt(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim(); }
 
 // datas
 function ymd(ts) { const d = new Date(ts); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
@@ -472,8 +473,22 @@ function attachAutocomplete(inp, box, source) {
   const todos = source || distinctNomes();
   if (!todos.length) return;
   const render = () => {
-    const q = inp.value.trim().toLowerCase();
-    let lista = q ? todos.filter(n => n.toLowerCase().startsWith(q) && n.toLowerCase() !== q) : todos;
+    const qn = normTxt(inp.value);
+    let lista;
+    if (!qn) {
+      lista = todos.slice();
+    } else {
+      lista = todos.map(n => {
+        const nn = normTxt(n);
+        if (nn === qn) return null;              // já é exatamente o que foi digitado
+        let rank;
+        if (nn.startsWith(qn)) rank = 0;                                   // começa com
+        else if (nn.split(/\s+/).some(w => w.startsWith(qn))) rank = 1;    // início de palavra
+        else if (nn.includes(qn)) rank = 2;                               // qualquer parte
+        else return null;
+        return { n, rank };
+      }).filter(Boolean).sort((a, b) => a.rank - b.rank).map(x => x.n);
+    }
     lista = lista.slice(0, 8);
     if (!lista.length) { box.classList.remove("open"); box.innerHTML = ""; return; }
     box.innerHTML = lista.map(n => `<button type="button" class="sug-item" data-n="${esc(n)}">${esc(n)}</button>`).join("");
