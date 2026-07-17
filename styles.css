@@ -222,8 +222,31 @@ textarea.type-input { resize: vertical; min-height: 58px; font-family: inherit; 
 .item-row { background: var(--bg); border: 2px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
 .item-row .ir-name { position: relative; margin-bottom: 10px; }
 .item-row .ir-sub { display: flex; gap: 8px; align-items: stretch; }
-.item-row .qty-inp { flex: 0 0 84px; width: 84px; }
 .item-row .unit-inp { flex: 1; min-width: 0; }
+
+/* stepper de quantidade (− valor +) */
+.qty-stepper {
+  flex: 0 0 auto; display: flex; align-items: stretch;
+  border: 2px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card);
+}
+.qty-stepper .qstep {
+  width: 36px; border: none; background: var(--bg); color: var(--green-ink);
+  font-size: 20px; font-weight: 800; cursor: pointer; line-height: 1; touch-action: manipulation;
+}
+.qty-stepper .qstep:active { background: var(--card-hover); }
+.qty-stepper .qty-inp {
+  width: 46px; border: none; background: var(--card); color: var(--ink);
+  text-align: center; font-size: 16px; font-weight: 700; padding: 10px 0; outline: none;
+}
+input[type=number].qty-inp { -moz-appearance: textfield; appearance: textfield; }
+input[type=number].qty-inp::-webkit-inner-spin-button,
+input[type=number].qty-inp::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* campo de data mais integrado ao tema */
+input[type=date].type-input { cursor: pointer; }
+input[type=date].type-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .65; }
+input[type=date].type-input:hover::-webkit-calendar-picker-indicator { opacity: 1; }
+html[data-theme="dark"] input[type=date].type-input::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.7); }
 .item-row .ir-del {
   flex: 0 0 auto; width: 46px; border: 2px solid var(--line); background: var(--card);
   border-radius: 12px; color: var(--red); font-size: 16px; font-weight: 700; cursor: pointer;

@@ -254,7 +254,9 @@ function renderEntradas() {
     const r = addItemRow(); updateRemoveButtons();
     const inp = r && r.querySelector(".prod-inp"); if (inp) inp.focus();
   });
-  app.querySelector("#f-data").addEventListener("keydown", e => { if (e.key === "Enter") saveAll(); });
+  const fData = app.querySelector("#f-data");
+  fData.addEventListener("keydown", e => { if (e.key === "Enter") saveAll(); });
+  fData.addEventListener("click", () => { try { fData.showPicker(); } catch (e) {} });
 
   addItemRow(editando ? v : null);
   updateRemoveButtons();
@@ -308,7 +310,9 @@ function renderSaidas() {
   const c = app.querySelector("#sCancelBtn");
   if (c) c.addEventListener("click", () => { saidaEditId = null; home(); });
   app.querySelector("#sSearch").addEventListener("input", renderSaidaList);
-  app.querySelector("#s-data").addEventListener("keydown", e => { if (e.key === "Enter") salvarSaida(); });
+  const sData = app.querySelector("#s-data");
+  sData.addEventListener("keydown", e => { if (e.key === "Enter") salvarSaida(); });
+  sData.addEventListener("click", () => { try { sData.showPicker(); } catch (e) {} });
   const addRowBtn = app.querySelector("#addRowBtn");
   if (addRowBtn) addRowBtn.addEventListener("click", () => {
     const r = addItemRow(null, salvarSaida); updateRemoveButtons();
@@ -514,7 +518,11 @@ function addItemRow(vals, onEnter) {
       <div class="suggest prod-sug"></div>
     </div>
     <div class="ir-sub">
-      <input class="type-input qty-inp" type="number" min="1" step="1" value="${esc(v.qtd)}" title="Quantidade">
+      <div class="qty-stepper">
+        <button type="button" class="qstep" data-dir="-1" tabindex="-1" title="Diminuir">−</button>
+        <input class="qty-inp" type="number" min="1" step="1" inputmode="numeric" value="${esc(v.qtd)}" title="Quantidade">
+        <button type="button" class="qstep" data-dir="1" tabindex="-1" title="Aumentar">+</button>
+      </div>
       <select class="type-input unit-inp" title="Unidade">${uniOpts}</select>
       <button class="ir-del" title="Remover produto">✕</button>
     </div>`;
@@ -528,7 +536,11 @@ function addItemRow(vals, onEnter) {
     if (e.key === "Escape") { box.classList.remove("open"); return; }
     if (e.key === "Enter") { if (box.classList.contains("open")) box.classList.remove("open"); else save(); }
   });
-  row.querySelector(".qty-inp").addEventListener("keydown", e => { if (e.key === "Enter") save(); });
+  const qtyInp = row.querySelector(".qty-inp");
+  qtyInp.addEventListener("keydown", e => { if (e.key === "Enter") save(); });
+  row.querySelectorAll(".qstep").forEach(b => b.addEventListener("click", () => {
+    qtyInp.value = Math.max(1, (parseInt(qtyInp.value, 10) || 1) + Number(b.dataset.dir));
+  }));
   row.querySelector(".ir-del").addEventListener("click", () => {
     const total = app.querySelectorAll("#itemRows .item-row").length;
     if (total <= 1) {
