@@ -2,12 +2,12 @@
   "_comment": "Exemplo do formato do banco de doações (JSON) gravado offline em localStorage. Use 'Exportar db.json' no menu de configurações para baixar o seu de verdade, e 'Importar db.json' para restaurar ou levar para outro computador.",
   "v": 1,
   "produtos": [
-    { "id": "ex1", "nome": "Arroz 5kg", "qtd": 10, "unidade": "Pacotes", "data": "2026-07-10", "por": "daniel_ms", "ts": 1783532480000 },
-    { "id": "ex2", "nome": "Camiseta infantil", "qtd": 25, "unidade": "Unidade", "data": "2026-07-11", "por": "marcelo_ms", "ts": 1783618880000 },
-    { "id": "ex3", "nome": "Sabonete", "qtd": 40, "unidade": "Unidade", "data": "2026-07-12", "por": "jonathan_ms", "ts": 1783705280000 }
+    { "id": "ex1", "nome": "Arroz 5kg", "qtd": 10, "unidade": "pct", "data": "2026-07-10", "por": "daniel_ms", "ts": 1783532480000 },
+    { "id": "ex2", "nome": "Camiseta infantil", "qtd": 25, "unidade": "un", "data": "2026-07-11", "por": "marcelo_ms", "ts": 1783618880000 },
+    { "id": "ex3", "nome": "Sabonete", "qtd": 40, "unidade": "un", "data": "2026-07-12", "por": "jonathan_ms", "ts": 1783705280000 }
   ],
   "saidas": [
-    { "id": "sx1", "nome": "Arroz 5kg", "qtd": 2, "unidade": "Pacotes", "familia": "Família Silva", "obs": "Cesta mensal", "data": "2026-07-13", "por": "daniel_ms", "ts": 1783791680000 }
+    { "id": "sx1", "nome": "Arroz 5kg", "qtd": 2, "unidade": "pct", "familia": "Família Silva", "obs": "Cesta mensal", "data": "2026-07-13", "por": "daniel_ms", "ts": 1783791680000 }
   ],
   "familias": [
     { "id": "fm1", "nome": "Família Silva", "obs": "Recebe cesta mensal", "por": "daniel_ms", "ts": 1783705280000 }

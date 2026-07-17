@@ -14,7 +14,7 @@ let familiaEditId = null;  // id da família em edição
 let catEditId = null;      // id do produto (catálogo) em edição
 let view = "entradas";     // aba atual: "entradas" | "saidas" | "familias" | "produtos"
 
-const UNIDADES = ["Gramas", "Quilos", "Caixas", "Pacotes", "Unidade"];
+const UNIDADES = ["g", "kg", "cx", "pct", "un"];
 const AVATAR_CORES = ["#1cb0f6", "#58cc02", "#ce82ff", "#ff9600", "#ffc800", "#ff4b4b", "#2ec4b6"];
 
 // =====================================================
@@ -214,7 +214,7 @@ function renderEntradas() {
   const host = app.querySelector("#viewContent");
   const editando = editId !== null;
   const p = editando ? DB.produtos.find(x => x.id === editId) : null;
-  const v = p || { nome: "", qtd: 1, unidade: "Unidade", data: ymd(Date.now()) };
+  const v = p || { nome: "", qtd: 1, unidade: "g", data: ymd(Date.now()) };
 
   host.innerHTML = `
   <div class="card form-card">
@@ -261,7 +261,7 @@ function renderSaidas() {
   const host = app.querySelector("#viewContent");
   const editando = saidaEditId !== null;
   const s = editando ? DB.saidas.find(x => x.id === saidaEditId) : null;
-  const v = s || { nome: "", qtd: 1, unidade: "Unidade", familia: "", obs: "", data: ymd(Date.now()) };
+  const v = s || { nome: "", qtd: 1, unidade: "g", familia: "", obs: "", data: ymd(Date.now()) };
 
   host.innerHTML = `
   <div class="card form-card">
@@ -510,7 +510,7 @@ function addItemRow(vals, onEnter) {
   const rows = app.querySelector("#itemRows");
   if (!rows) return null;
   const save = onEnter || saveAll;
-  const v = vals || { nome: "", qtd: 1, unidade: "Unidade" };
+  const v = vals || { nome: "", qtd: 1, unidade: "g" };
   const uniOpts = UNIDADES.map(u => `<option value="${u}">${u}</option>`).join("");
   const row = document.createElement("div");
   row.className = "item-row";
@@ -538,7 +538,7 @@ function addItemRow(vals, onEnter) {
   row.querySelector(".ir-del").addEventListener("click", () => {
     const total = app.querySelectorAll("#itemRows .item-row").length;
     if (total <= 1) {
-      prodInp.value = ""; row.querySelector(".qty-inp").value = "1"; row.querySelector(".unit-inp").value = "Unidade"; prodInp.focus();
+      prodInp.value = ""; row.querySelector(".qty-inp").value = "1"; row.querySelector(".unit-inp").value = "g"; prodInp.focus();
     } else {
       row.remove(); updateRemoveButtons();
     }
