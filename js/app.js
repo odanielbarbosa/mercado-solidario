@@ -480,21 +480,9 @@ function attachAutocomplete(inp, box, source) {
   if (!todos.length) return;
   const render = () => {
     const qn = normTxt(inp.value);
-    let lista;
-    if (!qn) {
-      lista = todos.slice();
-    } else {
-      lista = todos.map(n => {
-        const nn = normTxt(n);
-        if (nn === qn) return null;              // já é exatamente o que foi digitado
-        let rank;
-        if (nn.startsWith(qn)) rank = 0;                                   // começa com
-        else if (nn.split(/\s+/).some(w => w.startsWith(qn))) rank = 1;    // início de palavra
-        else if (nn.includes(qn)) rank = 2;                               // qualquer parte
-        else return null;
-        return { n, rank };
-      }).filter(Boolean).sort((a, b) => a.rank - b.rank).map(x => x.n);
-    }
+    let lista = todos.slice();
+    if (qn) lista = lista.filter(n => { const nn = normTxt(n); return nn !== qn && nn.includes(qn); });
+    lista.sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
     lista = lista.slice(0, 8);
     if (!lista.length) { box.classList.remove("open"); box.innerHTML = ""; return; }
     box.innerHTML = lista.map(n => `<button type="button" class="sug-item" data-n="${esc(n)}">${esc(n)}</button>`).join("");
