@@ -316,6 +316,11 @@ html[data-theme="dark"] input[type=date].type-input::-webkit-calendar-picker-ind
 .est-nome { font-weight: 700; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .est-qtd { font-weight: 800; color: var(--green-ink); white-space: nowrap; flex: 0 0 auto; }
 .est-qtd.neg { color: var(--red-ink); }
+
+/* ---------- tela de carregamento ---------- */
+.loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 60vh; color: var(--ink-soft); font-weight: 700; }
+.load-emoji { font-size: 48px; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: .7; } 50% { transform: scale(1.15); opacity: 1; } }
 .item-row .ir-del {
   flex: 0 0 auto; width: 46px; border: 2px solid var(--line); background: var(--card);
   border-radius: 12px; color: var(--red); font-size: 16px; font-weight: 700; cursor: pointer;

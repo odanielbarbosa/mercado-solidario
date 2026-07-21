@@ -45,6 +45,66 @@ function loadDB() {
 }
 function saveDB() { try { localStorage.setItem(STORE, JSON.stringify(DB)); } catch (e) {} }
 
+// =====================================================
+// SUPABASE (sincronização online) — dados compartilhados
+// =====================================================
+const SB = window.SUPA || null;
+const TABELAS = ["produtos", "saidas", "familias", "catalogo"];
+function sbHeaders(extra) {
+  return Object.assign({ apikey: SB.key, Authorization: "Bearer " + SB.key, "Content-Type": "application/json" }, extra || {});
+}
+async function sbGet(table) {
+  const r = await fetch(SB.url + "/rest/v1/" + table + "?select=*", { headers: sbHeaders() });
+  if (!r.ok) throw new Error(table + " " + r.status);
+  return r.json();
+}
+async function sbInsert(table, row) {
+  const r = await fetch(SB.url + "/rest/v1/" + table, { method: "POST", headers: sbHeaders({ Prefer: "return=minimal" }), body: JSON.stringify(row) });
+  if (!r.ok) throw new Error("insert " + table + " " + r.status);
+}
+async function sbUpsert(table, rows) {
+  if (!rows || !rows.length) return;
+  const r = await fetch(SB.url + "/rest/v1/" + table, { method: "POST", headers: sbHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }), body: JSON.stringify(rows) });
+  if (!r.ok) throw new Error("upsert " + table + " " + r.status);
+}
+async function sbUpdate(table, id, patch) {
+  const r = await fetch(SB.url + "/rest/v1/" + table + "?id=eq." + encodeURIComponent(id), { method: "PATCH", headers: sbHeaders({ Prefer: "return=minimal" }), body: JSON.stringify(patch) });
+  if (!r.ok) throw new Error("update " + table + " " + r.status);
+}
+async function sbDelete(table, id) {
+  const r = await fetch(SB.url + "/rest/v1/" + table + "?id=eq." + encodeURIComponent(id), { method: "DELETE", headers: sbHeaders({ Prefer: "return=minimal" }) });
+  if (!r.ok) throw new Error("delete " + table + " " + r.status);
+}
+// números voltam como texto em algumas colunas — normaliza
+function coerce(arr) {
+  (arr || []).forEach(r => { if ("ts" in r) r.ts = Number(r.ts) || 0; if ("qtd" in r) r.qtd = Number(r.qtd) || 0; });
+  return arr || [];
+}
+// baixa tudo da nuvem para o DB (e guarda cache local)
+async function carregarTudo() {
+  const [produtos, saidas, familias, catalogo] = await Promise.all(TABELAS.map(sbGet));
+  DB = normalizeDB({ produtos: coerce(produtos), saidas: coerce(saidas), familias: coerce(familias), catalogo: coerce(catalogo) });
+  TABELAS.forEach(k => DB[k].sort((a, b) => (a.ts || 0) - (b.ts || 0)));
+  saveDB();
+}
+// primeira vez: se a nuvem está vazia e há dados salvos neste aparelho, sobe tudo
+async function migrarParaNuvem(local) {
+  const nuvemVazia = TABELAS.every(k => !DB[k].length);
+  const temLocal = local && TABELAS.some(k => (local[k] || []).length);
+  if (!nuvemVazia || !temLocal) return;
+  for (const k of TABELAS) await sbUpsert(k, local[k]);
+  await carregarTudo();
+}
+// reconcilia após um erro e avisa
+async function falhaSalvar(holder) {
+  try { await carregarTudo(); } catch (e) {}
+  home();
+  mostrarMsg("Não deu pra salvar. Verifique a internet e tente de novo.", true, holder);
+}
+function telaCarregando() {
+  app.innerHTML = `<div class="loading"><div class="load-emoji">🤝</div><div>Carregando…</div></div>`;
+}
+
 // ---------- export / import do db.json ----------
 function exportDB() {
   const blob = new Blob([JSON.stringify(DB, null, 2)], { type: "application/json" });
@@ -56,13 +116,16 @@ function exportDB() {
 }
 function importDB(file) {
   const r = new FileReader();
-  r.onload = () => {
+  r.onload = async () => {
+    let data;
+    try { data = normalizeDB(JSON.parse(r.result)); }
+    catch (e) { alert("Arquivo inválido. Selecione um db.json exportado por este app."); return; }
     try {
-      DB = normalizeDB(JSON.parse(r.result));
-      saveDB();
-      alert("Banco de doações importado com sucesso! ✅");
+      for (const k of TABELAS) await sbUpsert(k, data[k]);
+      await carregarTudo();
       home();
-    } catch (e) { alert("Arquivo inválido. Selecione um db.json exportado por este app."); }
+      alert("Banco importado e sincronizado na nuvem! ✅");
+    } catch (e) { alert("Falha ao importar para a nuvem. Verifique a internet e tente de novo."); }
   };
   r.readAsText(file);
 }
@@ -120,13 +183,22 @@ function findUser(input) {
   if (!q) return null;
   return allUsers().find(u => u.id.toLowerCase() === q) || null;
 }
-function login(user) {
+async function login(user) {
   if (!user) return;
   currentUser = user;
   localStorage.setItem(USER_KEY, user.id);
-  DB = loadDB();
-  migrarCatalogo();
   editId = null;
+  const local = loadDB();
+  telaCarregando();
+  try {
+    await carregarTudo();
+    await migrarParaNuvem(local);
+  } catch (e) {
+    DB = local; // offline: usa o cache deste aparelho
+    home();
+    mostrarMsg("Sem conexão — mostrando dados salvos neste aparelho.", true);
+    return;
+  }
   home();
 }
 function logout() {
@@ -443,25 +515,14 @@ function distinctNomes() {
   return DB.catalogo.slice().reverse().map(p => (p.nome || "").trim()).filter(Boolean);
 }
 
-// cadastra o produto no catálogo se ainda não existir
-function garantirProdutoCat(nome) {
+// cadastra o produto no catálogo (nuvem) se ainda não existir
+async function garantirProdutoCat(nome) {
   const n = (nome || "").trim();
   if (!n) return;
-  const existe = DB.catalogo.some(p => (p.nome || "").trim().toLowerCase() === n.toLowerCase());
-  if (!existe) DB.catalogo.push({ id: uid(), nome: n, por: currentUser ? currentUser.id : "", ts: Date.now() });
-}
-
-// primeira carga: popula o catálogo com produtos já usados em entradas/saídas
-function migrarCatalogo() {
-  if (DB.catalogo.length) return;
-  const seen = new Set(), add = [];
-  const push = nome => { const n = (nome || "").trim(), k = n.toLowerCase(); if (n && !seen.has(k)) { seen.add(k); add.push(n); } };
-  DB.produtos.forEach(p => push(p.nome));
-  DB.saidas.forEach(s => push(s.nome));
-  if (!add.length) return;
-  let t = Date.now();
-  add.forEach(n => DB.catalogo.push({ id: uid(), nome: n, por: currentUser ? currentUser.id : "", ts: t++ }));
-  saveDB();
+  if (DB.catalogo.some(p => (p.nome || "").trim().toLowerCase() === n.toLowerCase())) return;
+  const row = { id: uid(), nome: n, por: currentUser ? currentUser.id : "", ts: Date.now() };
+  await sbInsert("catalogo", row);
+  DB.catalogo.push(row);
 }
 
 // nomes distintos das famílias cadastradas (mais recentes primeiro)
@@ -649,7 +710,7 @@ function createDatePicker(id, iso) {
 // =====================================================
 // CRUD
 // =====================================================
-function saveAll() {
+async function saveAll() {
   const data = app.querySelector("#f-data").value;
 
   // edição: uma única linha atualiza o produto existente
@@ -659,12 +720,13 @@ function saveAll() {
     const qtd = Math.max(1, parseInt(row.querySelector(".qty-inp").value, 10) || 1);
     const unidade = row.querySelector(".unit-inp").value;
     if (!nome) { mostrarMsg("Informe o nome do produto.", true); row.querySelector(".prod-inp").focus(); return; }
-    const p = DB.produtos.find(x => x.id === editId);
-    if (p) Object.assign(p, { nome, qtd, unidade, data });
-    garantirProdutoCat(nome);
-    saveDB();
-    editId = null;
-    home();
+    try {
+      await sbUpdate("produtos", editId, { nome, qtd, unidade, data });
+      const p = DB.produtos.find(x => x.id === editId);
+      if (p) Object.assign(p, { nome, qtd, unidade, data });
+      await garantirProdutoCat(nome);
+    } catch (e) { return falhaSalvar(); }
+    saveDB(); editId = null; home();
     mostrarMsg("Doação atualizada com sucesso! ✅", false);
     return;
   }
@@ -686,15 +748,15 @@ function saveAll() {
   }
 
   const agora = Date.now();
-  itens.forEach((it, i) => {
-    DB.produtos.push({
-      id: uid(), nome: it.nome, qtd: it.qtd, unidade: it.unidade, data,
-      por: currentUser ? currentUser.id : "", ts: agora + i
-    });
-  });
-  itens.forEach(it => garantirProdutoCat(it.nome));
-  saveDB();
-  home();
+  try {
+    for (let i = 0; i < itens.length; i++) {
+      const it = itens[i];
+      const row = { id: uid(), nome: it.nome, qtd: it.qtd, unidade: it.unidade, data, por: currentUser ? currentUser.id : "", ts: agora + i };
+      await sbInsert("produtos", row); DB.produtos.push(row);
+      await garantirProdutoCat(it.nome);
+    }
+  } catch (e) { return falhaSalvar(); }
+  saveDB(); home();
   mostrarMsg(itens.length === 1
     ? "Doação adicionada com sucesso! 🎉"
     : `${itens.length} doações adicionadas com sucesso! 🎉`, false);
@@ -706,11 +768,11 @@ function removerProduto(id) {
   confirmDialog({
     title: "🗑️ Remover doação",
     message: `Remover <b>${esc(p.nome)}</b> (${esc(p.qtd)} ${esc(p.unidade)}) das doações?<br>Essa ação não pode ser desfeita.`,
-    onOk: () => {
-      DB.produtos = DB.produtos.filter(x => x.id !== id);
-      saveDB();
+    onOk: async () => {
+      try { await sbDelete("produtos", id); DB.produtos = DB.produtos.filter(x => x.id !== id); }
+      catch (e) { return falhaSalvar(); }
       if (editId === id) editId = null;
-      home();
+      saveDB(); home();
       mostrarMsg("Doação removida.", false);
     }
   });
@@ -740,7 +802,7 @@ function confirmDialog(opts) {
 // =====================================================
 // SAÍDAS (CRUD)
 // =====================================================
-function salvarSaida() {
+async function salvarSaida() {
   const familia = app.querySelector("#s-familia").value.trim();
   const obs = app.querySelector("#s-obs").value.trim();
   const data = app.querySelector("#s-data").value;
@@ -752,13 +814,14 @@ function salvarSaida() {
     const qtd = Math.max(1, parseInt(row.querySelector(".qty-inp").value, 10) || 1);
     const unidade = row.querySelector(".unit-inp").value;
     if (!nome) { mostrarMsg("Informe o nome do produto.", true, "#sMsgHolder"); row.querySelector(".prod-inp").focus(); return; }
-    const s = DB.saidas.find(x => x.id === saidaEditId);
-    if (s) Object.assign(s, { nome, qtd, unidade, familia, obs, data });
-    garantirProdutoCat(nome);
-    garantirFamilia(familia);
-    saveDB();
-    saidaEditId = null;
-    home();
+    try {
+      await sbUpdate("saidas", saidaEditId, { nome, qtd, unidade, familia, obs, data });
+      const s = DB.saidas.find(x => x.id === saidaEditId);
+      if (s) Object.assign(s, { nome, qtd, unidade, familia, obs, data });
+      await garantirProdutoCat(nome);
+      await garantirFamilia(familia);
+    } catch (e) { return falhaSalvar("#sMsgHolder"); }
+    saveDB(); saidaEditId = null; home();
     mostrarMsg("Saída atualizada com sucesso! ✅", false, "#sMsgHolder");
     return;
   }
@@ -780,16 +843,16 @@ function salvarSaida() {
   }
 
   const agora = Date.now();
-  itens.forEach((it, i) => {
-    DB.saidas.push({
-      id: uid(), nome: it.nome, qtd: it.qtd, unidade: it.unidade, familia, obs, data,
-      por: currentUser ? currentUser.id : "", ts: agora + i
-    });
-  });
-  itens.forEach(it => garantirProdutoCat(it.nome));
-  garantirFamilia(familia);
-  saveDB();
-  home();
+  try {
+    for (let i = 0; i < itens.length; i++) {
+      const it = itens[i];
+      const row = { id: uid(), nome: it.nome, qtd: it.qtd, unidade: it.unidade, familia, obs, data, por: currentUser ? currentUser.id : "", ts: agora + i };
+      await sbInsert("saidas", row); DB.saidas.push(row);
+      await garantirProdutoCat(it.nome);
+    }
+    await garantirFamilia(familia);
+  } catch (e) { return falhaSalvar("#sMsgHolder"); }
+  saveDB(); home();
   mostrarMsg(itens.length === 1
     ? "Saída registrada com sucesso! 🎉"
     : `${itens.length} saídas registradas com sucesso! 🎉`, false, "#sMsgHolder");
@@ -836,11 +899,11 @@ function removerSaida(id) {
   confirmDialog({
     title: "🗑️ Remover saída",
     message: `Remover a saída de <b>${esc(s.nome)}</b> (${esc(s.qtd)} ${esc(s.unidade)})?<br>Essa ação não pode ser desfeita.`,
-    onOk: () => {
-      DB.saidas = DB.saidas.filter(x => x.id !== id);
-      saveDB();
+    onOk: async () => {
+      try { await sbDelete("saidas", id); DB.saidas = DB.saidas.filter(x => x.id !== id); }
+      catch (e) { return falhaSalvar("#sMsgHolder"); }
       if (saidaEditId === id) saidaEditId = null;
-      home();
+      saveDB(); home();
       mostrarMsg("Saída removida.", false, "#sMsgHolder");
     }
   });
@@ -849,33 +912,35 @@ function removerSaida(id) {
 // =====================================================
 // FAMÍLIAS (CRUD)
 // =====================================================
-// cadastra a família automaticamente se ainda não existir (usado nas saídas)
-function garantirFamilia(nome) {
+// cadastra a família na nuvem automaticamente se ainda não existir (usado nas saídas)
+async function garantirFamilia(nome) {
   const n = (nome || "").trim();
   if (!n) return;
-  const existe = DB.familias.some(f => (f.nome || "").trim().toLowerCase() === n.toLowerCase());
-  if (!existe) {
-    DB.familias.push({ id: uid(), nome: n, obs: "", por: currentUser ? currentUser.id : "", ts: Date.now() });
-  }
+  if (DB.familias.some(f => (f.nome || "").trim().toLowerCase() === n.toLowerCase())) return;
+  const row = { id: uid(), nome: n, obs: "", por: currentUser ? currentUser.id : "", ts: Date.now() };
+  await sbInsert("familias", row);
+  DB.familias.push(row);
 }
 
-function salvarFamilia() {
+async function salvarFamilia() {
   const nome = app.querySelector("#fm-nome").value.trim();
   const obs = app.querySelector("#fm-obs").value.trim();
 
   if (!nome) { mostrarMsg("Informe o nome da família.", true, "#fmMsgHolder"); app.querySelector("#fm-nome").focus(); return; }
 
   if (familiaEditId !== null) {
-    const f = DB.familias.find(x => x.id === familiaEditId);
-    if (f) Object.assign(f, { nome, obs });
-    saveDB();
-    familiaEditId = null;
-    home();
+    try {
+      await sbUpdate("familias", familiaEditId, { nome, obs });
+      const f = DB.familias.find(x => x.id === familiaEditId);
+      if (f) Object.assign(f, { nome, obs });
+    } catch (e) { return falhaSalvar("#fmMsgHolder"); }
+    saveDB(); familiaEditId = null; home();
     mostrarMsg("Família atualizada com sucesso! ✅", false, "#fmMsgHolder");
   } else {
-    DB.familias.push({ id: uid(), nome, obs, por: currentUser ? currentUser.id : "", ts: Date.now() });
-    saveDB();
-    home();
+    const row = { id: uid(), nome, obs, por: currentUser ? currentUser.id : "", ts: Date.now() };
+    try { await sbInsert("familias", row); DB.familias.push(row); }
+    catch (e) { return falhaSalvar("#fmMsgHolder"); }
+    saveDB(); home();
     mostrarMsg("Família cadastrada com sucesso! 🎉", false, "#fmMsgHolder");
   }
 }
@@ -919,11 +984,11 @@ function removerFamilia(id) {
   confirmDialog({
     title: "🗑️ Remover família",
     message: `Remover <b>${esc(f.nome)}</b> do cadastro?<br>Essa ação não pode ser desfeita.`,
-    onOk: () => {
-      DB.familias = DB.familias.filter(x => x.id !== id);
-      saveDB();
+    onOk: async () => {
+      try { await sbDelete("familias", id); DB.familias = DB.familias.filter(x => x.id !== id); }
+      catch (e) { return falhaSalvar("#fmMsgHolder"); }
       if (familiaEditId === id) familiaEditId = null;
-      home();
+      saveDB(); home();
       mostrarMsg("Família removida.", false, "#fmMsgHolder");
     }
   });
@@ -932,7 +997,7 @@ function removerFamilia(id) {
 // =====================================================
 // PRODUTOS / CATÁLOGO (CRUD)
 // =====================================================
-function salvarProdutoCat() {
+async function salvarProdutoCat() {
   const nome = app.querySelector("#cad-nome").value.trim();
   if (!nome) { mostrarMsg("Informe o nome do produto.", true, "#cadMsgHolder"); app.querySelector("#cad-nome").focus(); return; }
 
@@ -940,19 +1005,21 @@ function salvarProdutoCat() {
     if (DB.catalogo.some(x => x.id !== catEditId && (x.nome || "").trim().toLowerCase() === nome.toLowerCase())) {
       mostrarMsg("Já existe um produto com esse nome.", true, "#cadMsgHolder"); return;
     }
-    const p = DB.catalogo.find(x => x.id === catEditId);
-    if (p) p.nome = nome;
-    saveDB();
-    catEditId = null;
-    home();
+    try {
+      await sbUpdate("catalogo", catEditId, { nome });
+      const p = DB.catalogo.find(x => x.id === catEditId);
+      if (p) p.nome = nome;
+    } catch (e) { return falhaSalvar("#cadMsgHolder"); }
+    saveDB(); catEditId = null; home();
     mostrarMsg("Produto atualizado com sucesso! ✅", false, "#cadMsgHolder");
   } else {
     if (DB.catalogo.some(x => (x.nome || "").trim().toLowerCase() === nome.toLowerCase())) {
       mostrarMsg("Esse produto já está cadastrado.", true, "#cadMsgHolder"); app.querySelector("#cad-nome").select(); return;
     }
-    DB.catalogo.push({ id: uid(), nome, por: currentUser ? currentUser.id : "", ts: Date.now() });
-    saveDB();
-    home();
+    const row = { id: uid(), nome, por: currentUser ? currentUser.id : "", ts: Date.now() };
+    try { await sbInsert("catalogo", row); DB.catalogo.push(row); }
+    catch (e) { return falhaSalvar("#cadMsgHolder"); }
+    saveDB(); home();
     mostrarMsg("Produto cadastrado com sucesso! 🎉", false, "#cadMsgHolder");
   }
 }
@@ -991,11 +1058,11 @@ function removerProdutoCat(id) {
   confirmDialog({
     title: "🗑️ Remover produto",
     message: `Remover <b>${esc(p.nome)}</b> do cadastro de produtos?<br>Isso não afeta as entradas/saídas já registradas.`,
-    onOk: () => {
-      DB.catalogo = DB.catalogo.filter(x => x.id !== id);
-      saveDB();
+    onOk: async () => {
+      try { await sbDelete("catalogo", id); DB.catalogo = DB.catalogo.filter(x => x.id !== id); }
+      catch (e) { return falhaSalvar("#cadMsgHolder"); }
       if (catEditId === id) catEditId = null;
-      home();
+      saveDB(); home();
       mostrarMsg("Produto removido.", false, "#cadMsgHolder");
     }
   });
@@ -1026,8 +1093,8 @@ function openSettings() {
       <button class="nav-btn" id="mExport">⬇️ Exportar db.json</button>
       <button class="nav-btn" id="mImport">⬆️ Importar db.json</button>
     </div>
-    <div class="modal-note">As doações ficam salvas neste navegador (banco JSON offline).<br>
-    Use <b>Exportar</b> para gerar um <b>db.json</b> de backup ou levar para outro computador.</div>
+    <div class="modal-note">Os dados ficam sincronizados na nuvem (Supabase) e aparecem para todos.<br>
+    Use <b>Exportar</b> para um backup em <b>db.json</b>.</div>
   </div>`;
   document.body.appendChild(bg);
   const close = () => bg.remove();
@@ -1224,9 +1291,18 @@ function openEstoque() {
 document.addEventListener("click", closeAllPopups);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllPopups(); });
 
-(function boot() {
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden || !currentUser) return;
+  if (document.querySelector(".modal-bg")) return; // não interrompe um popup aberto
+  if (editId !== null || saidaEditId !== null || familiaEditId !== null || catEditId !== null) return;
+  const digitando = [...document.querySelectorAll(".prod-inp, #fm-nome, #cad-nome, #s-familia, #s-obs")].some(i => i.value.trim());
+  if (digitando) return; // não descarta o que está sendo preenchido
+  try { await carregarTudo(); home(); } catch (e) {}
+});
+
+(async function boot() {
   const saved = localStorage.getItem(USER_KEY);
   const u = saved ? findUser(saved) : null;
-  if (u) login(u); else loginScreen();
+  if (u) await login(u); else loginScreen();
 })();
 })();
