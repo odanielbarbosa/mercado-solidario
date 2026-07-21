@@ -308,6 +308,14 @@ html[data-theme="dark"] input[type=date].type-input::-webkit-calendar-picker-ind
 .cal-cell.empty { pointer-events: none; }
 .cal-cell:hover:not(.empty) { background: var(--card-hover); }
 .cal-cell.sel { background: var(--green); color: #fff; font-weight: 800; }
+
+/* ---------- estoque (popup) ---------- */
+.est-list { max-height: 55vh; overflow-y: auto; }
+.est-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 4px; border-bottom: 1px solid var(--line); }
+.est-row:last-child { border-bottom: none; }
+.est-nome { font-weight: 700; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.est-qtd { font-weight: 800; color: var(--green-ink); white-space: nowrap; flex: 0 0 auto; }
+.est-qtd.neg { color: var(--red-ink); }
 .item-row .ir-del {
   flex: 0 0 auto; width: 46px; border: 2px solid var(--line); background: var(--card);
   border-radius: 12px; color: var(--red); font-size: 16px; font-weight: 700; cursor: pointer;

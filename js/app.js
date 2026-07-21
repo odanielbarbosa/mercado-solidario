@@ -169,13 +169,12 @@ function loginScreen() {
 // =====================================================
 function home() {
   const dark = currentTheme() === "dark";
-  const totalItens = DB.produtos.reduce((s, p) => s + (parseInt(p.qtd, 10) || 0), 0);
 
   app.innerHTML = `
   <div class="topbar">
     <div class="brand"><span>🤝</span> Mercado Solidário</div>
     <div class="top-right">
-      <div class="stats"><span class="done">📦 ${totalItens}</span></div>
+      <button class="cfg-btn" id="estoqueBtn" title="Estoque">📦</button>
       <button class="cfg-btn" id="cfgBtn" title="Configurações">⚙️</button>
       <button class="theme-toggle" id="themeBtn" title="${dark ? "Mudar para tema claro" : "Mudar para tema escuro"}">${dark ? "☀️" : "🌙"}</button>
     </div>
@@ -198,6 +197,7 @@ function home() {
 
   app.querySelector("#themeBtn").addEventListener("click", toggleTheme);
   app.querySelector("#cfgBtn").addEventListener("click", openSettings);
+  app.querySelector("#estoqueBtn").addEventListener("click", openEstoque);
   app.querySelector("#logoutBtn").addEventListener("click", logout);
   app.querySelector("#prodBtn").addEventListener("click", () => {
     if (view === "produtos") return;
@@ -1176,6 +1176,51 @@ function buildRecent(prods) {
 // =====================================================
 // BOOT
 // =====================================================
+// =====================================================
+// ESTOQUE (entradas − saídas)
+// =====================================================
+function calcularEstoque() {
+  const map = {};
+  const add = (nome, unidade, q, sign) => {
+    const key = (nome || "").trim().toLowerCase() + "|" + (unidade || "");
+    if (!map[key]) map[key] = { nome: (nome || "").trim(), unidade: unidade || "", qtd: 0 };
+    map[key].qtd += sign * (parseInt(q, 10) || 0);
+  };
+  DB.produtos.forEach(p => add(p.nome, p.unidade, p.qtd, 1));
+  DB.saidas.forEach(s => add(s.nome, s.unidade, s.qtd, -1));
+  return Object.values(map).sort((a, b) =>
+    a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }) || String(a.unidade).localeCompare(String(b.unidade)));
+}
+
+function openEstoque() {
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+  <div class="modal">
+    <button class="close-x" title="Fechar">✕</button>
+    <h2>📦 Estoque atual</h2>
+    <input id="estSearch" class="type-input" style="text-align:left;margin-bottom:12px" placeholder="🔎 Buscar produto…" autocomplete="off">
+    <div id="estList" class="est-list"></div>
+  </div>`;
+  document.body.appendChild(bg);
+  const close = () => bg.remove();
+  bg.querySelector(".close-x").onclick = close;
+  bg.onclick = e => { if (e.target === bg) close(); };
+  const listEl = bg.querySelector("#estList");
+  const search = bg.querySelector("#estSearch");
+  const dados = calcularEstoque();
+  const draw = () => {
+    const q = normTxt(search.value);
+    let itens = dados.filter(x => x.qtd !== 0);
+    if (q) itens = itens.filter(x => normTxt(x.nome).includes(q));
+    listEl.innerHTML = itens.length
+      ? itens.map(x => `<div class="est-row"><span class="est-nome">${esc(x.nome)}</span><span class="est-qtd${x.qtd < 0 ? " neg" : ""}">${x.qtd} ${esc(x.unidade)}</span></div>`).join("")
+      : `<div class="empty-note"><div class="big">📦</div>${dados.length ? "Nenhum produto encontrado." : "Nada em estoque ainda."}</div>`;
+  };
+  search.addEventListener("input", draw);
+  draw();
+}
+
 document.addEventListener("click", closeAllPopups);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeAllPopups(); });
 
