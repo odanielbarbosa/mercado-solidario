@@ -246,7 +246,6 @@ function home() {
   <div class="topbar">
     <div class="brand"><span>🤝</span> Mercado Solidário</div>
     <div class="top-right">
-      <button class="cfg-btn" id="estoqueBtn" title="Estoque">📦</button>
       <button class="cfg-btn" id="cfgBtn" title="Configurações">⚙️</button>
       <button class="theme-toggle" id="themeBtn" title="${dark ? "Mudar para tema claro" : "Mudar para tema escuro"}">${dark ? "☀️" : "🌙"}</button>
     </div>
@@ -255,6 +254,7 @@ function home() {
   <div class="user-bar">
     <div class="avatar sm" style="background:${currentUser.color}">${currentUser.avatar}</div>
     <div class="uwrap"><div class="uhi">Olá, ${esc(currentUser.name)}! 👋</div></div>
+    <button class="nav-btn" id="estoqueBtn">📦 Estoque</button>
     <button class="nav-btn${view === "produtos" ? " on" : ""}" id="prodBtn">📋 Produtos</button>
     <button class="nav-btn" id="logoutBtn">↩︎ Sair</button>
   </div>

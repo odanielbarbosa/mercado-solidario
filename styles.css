@@ -172,7 +172,7 @@ input, textarea, .prod-info, .rec, .tbl-wrap, .io-note, .foot-note {
 .avatar.sm { width: 42px; height: 42px; border-radius: 12px; font-size: 21px; box-shadow: 0 3px 0 rgba(0,0,0,.18); flex: 0 0 auto; }
 
 /* ---------- user bar (home) ---------- */
-.user-bar { display: flex; align-items: center; gap: 12px; margin: 2px 0 18px; }
+.user-bar { display: flex; align-items: center; gap: 8px; margin: 2px 0 18px; flex-wrap: wrap; }
 .user-bar .uwrap { flex: 1; min-width: 0; }
 .user-bar .uhi { font-weight: 800; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
